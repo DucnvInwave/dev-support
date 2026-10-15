@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile, readdir } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -26,7 +26,7 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   assert.equal(duplicateExit, 1);
   assert.match(duplicateOutput, new RegExp(`cổng ${port} đang được sử dụng`));
   assert.ok(duplicateOutput.includes(`http://localhost:${port}`));
-  assert.match(duplicateOutput, /\$env:PORT/);
+  assert.match(duplicateOutput, process.platform === 'win32' ? /\$env:PORT/ : /PORT=\d+ npm start/);
   assert.doesNotMatch(duplicateOutput, /Unhandled 'error' event|node:events|at Server\./);
   assert.equal((await fetch(base)).status, 200, 'the existing server is left running');
   assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
@@ -51,7 +51,7 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   assert.deepEqual(await fetch(base + '/api/jobs').then(r => r.json()), []);
   // A fake CLI exercises the complete ZIP upload path without contacting Firebase.
   const fakeCLI = path.join(temp, 'fake firebase.cjs');
-  await writeFile(fakeCLI, 'console.log(JSON.stringify(process.argv.slice(2)));');
+  await writeFile(fakeCLI, "const assert = require('node:assert/strict');\nconst path = require('node:path');\nconst expected = path.resolve(process.env.DEVKIT_DATA_DIR, 'firebase-workspace');\nassert.equal(require('node:fs').realpathSync(process.cwd()), require('node:fs').realpathSync(expected), 'Firebase must run in writable user data, not the installation directory');\nrequire('node:child_process').execFileSync(process.execPath, ['-e', \"const fs=require('node:fs'); fs.mkdirSync('.crashlytics',{recursive:true}); fs.writeFileSync('.crashlytics/dump_syms.fixture','extracted');\"], {windowsHide:true});\nconsole.log(JSON.stringify(process.argv.slice(2)));\n");
   assert.equal((await post('/api/settings', { ...settings, firebasePath: fakeCLI })).status, 200);
   const upload = await fetch(base + '/api/symbols?appId=' + encodeURIComponent(settings.appId), {
     method: 'POST', headers: { 'Content-Type': 'application/zip', 'X-Devkit-Token': session.token },
@@ -67,11 +67,31 @@ test('local HTTP server serves the app and protects command endpoints', async t 
     await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.equal(completed.status, 'success', completed.output);
-  const args = JSON.parse(completed.output.trim());
+  assert.equal(await readFile(path.join(temp, 'firebase-workspace', '.crashlytics', 'dump_syms.fixture'), 'utf8'), 'extracted', 'Buildtools child process writes cache under user data');
+  const args = JSON.parse(completed.output.trim().split(/\r?\n/).at(-1));
   assert.deepEqual(args.slice(0, 2), ['crashlytics:symbols:upload', '--app=' + settings.appId]);
   assert.equal(path.dirname(args[2]), path.join(temp, 'uploads'));
   assert.equal(args[3], '--non-interactive');
+  assert.equal(args[4], '--debug', 'Buildtools stderr is inherited so Java errors are visible');
+  assert.match(completed.output, /\[Java\]/);
   assert.deepEqual(await readdir(path.join(temp, 'uploads')), [], 'temporary ZIP removed after CLI exits');
+  // Simulate a Java failure emitted only on stderr: --debug must expose it.
+  await writeFile(fakeCLI, "if(process.argv.includes('--debug'))console.error('UnsupportedClassVersionError: fixture Java is too old');else console.log('An unknown error occurred');process.exitCode=1;");
+  const failedUpload = await fetch(base + '/api/symbols?appId=' + encodeURIComponent(settings.appId), {
+    method: 'POST', headers: { 'Content-Type': 'application/zip', 'X-Devkit-Token': session.token },
+    body: Buffer.from('504b0506000000000000000000000000000000000000', 'hex')
+  });
+  assert.equal(failedUpload.status, 202);
+  const failedId = (await failedUpload.json()).id;
+  let failed;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    failed = (await fetch(base + '/api/jobs').then(r => r.json())).find(job => job.id === failedId);
+    if (failed.finishedAt) break;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.equal(failed.status, 'error');
+  assert.match(failed.output, /UnsupportedClassVersionError: fixture Java is too old/);
+  assert.deepEqual(await readdir(path.join(temp, 'uploads')), [], 'temporary ZIP removed after Java failure');
   const hostStatus = await new Promise((resolve, reject) => { const request = http.get(base + '/api/session', { headers: { Host: `attacker.example:${port}` } }, res => { res.resume(); resolve(res.statusCode); }); request.on('error', reject); });
   assert.equal(hostStatus, 403);
 });

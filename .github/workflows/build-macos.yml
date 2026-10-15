@@ -1,0 +1,46 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          architecture: ${{ matrix.arch }}
+      - name: Check native runtime architecture
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: node -e "if (process.arch !== process.env.EXPECTED_ARCH) throw new Error('Native Node architecture mismatch')"
+      - name: Run tests
+        run: npm test
+      - name: Build macOS bundle
+        run: npm run package:macos
+      - name: Test extracted app without Node on PATH
+        run: node scripts/check-macos.mjs
+      - name: Upload macOS download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Devkit-macOS-${{ matrix.arch }}
+          path: |
+            dist/*-macos-${{ matrix.arch }}.zip
+            dist/*-macos-${{ matrix.arch }}.zip.sha256
+          if-no-files-found: error
+          retention-days: 30

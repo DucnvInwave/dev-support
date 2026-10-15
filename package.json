@@ -1,6 +1,6 @@
 {
   "name": "devkit-workspace",
-  "version": "1.0.2",
+  "version": "1.1.2",
   "private": true,
   "type": "module",
   "description": "A local developer and QC toolbox for Android and Firebase",
@@ -8,9 +8,74 @@
     "start": "node server/index.mjs",
     "dev": "node --watch server/index.mjs",
     "test": "node --test",
-    "package:windows": "node scripts/build-windows.mjs"
+    "package:windows": "node scripts/build-windows.mjs",
+    "package:macos": "node scripts/build-macos.mjs",
+    "electron": "electron .",
+    "electron:smoke": "node scripts/check-electron.mjs",
+    "electron:pack": "electron-builder --dir",
+    "electron:dist:win": "electron-builder --win nsis --x64",
+    "electron:dist:mac": "electron-builder --mac dmg zip"
   },
   "engines": {
     "node": ">=20"
+  },
+  "main": "desktop/main.cjs",
+  "author": "Devkit",
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "local.devkit.desktop",
+    "productName": "Devkit",
+    "directories": {
+      "output": "dist/electron",
+      "buildResources": "desktop"
+    },
+    "files": [
+      "desktop/**",
+      "public/**",
+      "server/**",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "desktop/backend.cjs",
+      "server/**",
+      "public/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "desktop/icon.ico",
+      "artifactName": "Devkit-${version}-Windows-${arch}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": false,
+      "installerIcon": "desktop/icon.ico",
+      "uninstallerIcon": "desktop/icon.ico"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "desktop/icon.png",
+      "minimumSystemVersion": "13.0",
+      "identity": null,
+      "artifactName": "Devkit-${version}-macOS-${arch}.${ext}",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    }
   }
 }

@@ -6,13 +6,19 @@ import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
-import { APP_ID, resolveTools, execute, parseDevices, debugArgs, firebaseInvocation, validateZip, validSerial, validAppId } from './tools.mjs';
+import { APP_ID, resolveTools, execute, inspectJava, parseDevices, debugArgs, firebaseInvocation, launchMacMonitor, stopCommands, validateZip, validSerial, validAppId } from './tools.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const local = process.env.DEVKIT_DATA_DIR || path.join(root, '.local');
+const local = path.resolve(process.env.DEVKIT_DATA_DIR || path.join(root, '.local'));
+// Firebase/Java extract .crashlytics relative to cwd; installed app folders may be read-only.
+const firebaseWorkspace = path.join(local, 'firebase-workspace');
 await mkdir(path.join(local, 'uploads'), { recursive: true });
 const token = randomBytes(32).toString('hex');
-const port = Number(process.env.PORT || 3210);
+let port = Number(process.env.PORT || 3210);
+let shuttingDown = false, resolveReady, rejectReady;
+const runningTasks = new Set();
+export const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+ready.catch(() => {});
 const desktopInstance = /^[a-f0-9]{32}$/.test(process.env.DEVKIT_DESKTOP_INSTANCE || '') ? process.env.DEVKIT_DESKTOP_INSTANCE : '';
 const readJSON = async (file, fallback) => { try { return JSON.parse(await readFile(path.join(local, file), 'utf8')); } catch { return fallback; } };
 let settings = await readJSON('settings.json', { sdkRoot: '', adbPath: '', firebasePath: '', appId: APP_ID });
@@ -30,14 +36,16 @@ function startJob(type, title, command, task) {
   const job = { id: randomUUID(), type, title, command, status: 'running', createdAt: new Date().toISOString(), output: '' };
   jobs.unshift(job); jobs.splice(100); persist();
   const log = text => { job.output = (job.output + text).slice(-200000); };
-  Promise.resolve().then(() => task(log)).then(result => {
+  const completion = Promise.resolve().then(() => task(log)).then(result => {
     job.status = result.code === 0 ? 'success' : 'error';
     if (!job.output.trim()) log(result.code === 0 ? 'Lệnh đã thực thi thành công.\n' : `Lệnh kết thúc với mã lỗi ${result.code}.\n`);
-  }).catch(error => { job.status = 'error'; log(`\n${error.message}\n`); }).finally(() => { job.finishedAt = new Date().toISOString(); persist(); });
+  }).catch(error => { job.status = 'error'; log(`\n${error.message}\n`); }).finally(() => { job.finishedAt = new Date().toISOString(); persist(); runningTasks.delete(completion); });
+  runningTasks.add(completion);
   return job;
 }
 
 const server = http.createServer(async (req, res) => {
+  if (shuttingDown) return json(res, 503, { error: 'Devkit đang dừng.' });
   res.setHeader('X-Content-Type-Options', 'nosniff');
   if (desktopInstance) res.setHeader('X-Devkit-Instance', desktopInstance);
   res.setHeader('Referrer-Policy', 'same-origin');
@@ -92,9 +100,16 @@ const server = http.createServer(async (req, res) => {
         const file = path.join(local, 'uploads', `${randomUUID()}.zip`); let size = 0;
         try {
           await pipeline(req, new Transform({ transform(chunk, encoding, callback) { size += chunk.length; callback(size > 1024 ** 3 ? new Error('File vượt quá giới hạn 1 GB.') : null, chunk); } }), createWriteStream(file, { flags: 'wx' }));
-          await validateZip(file); const invocation = await firebaseInvocation(tools.firebase, appId, file);
-          const job = startJob('symbols', 'Upload Crashlytics symbols', `firebase crashlytics:symbols:upload --app=${appId} "symbols.zip"`, async log => {
-            try { return await execute(invocation.file, invocation.args, { onOutput: log, timeout: 20 * 60 * 1000 }); }
+          await validateZip(file);
+          await mkdir(firebaseWorkspace, { recursive: true });
+          const invocation = await firebaseInvocation(tools.firebase, appId, file);
+          const job = startJob('symbols', 'Upload Crashlytics symbols', `firebase crashlytics:symbols:upload --app=${appId} "symbols.zip" --debug`, async log => {
+            try {
+              const java = await inspectJava();
+              log('[Java] ' + java.message + '\n');
+              // Keep running the CLI so its own stderr explains any remaining Buildtools failure.
+              return await execute(invocation.file, invocation.args, { onOutput: log, timeout: 20 * 60 * 1000, cwd: firebaseWorkspace, env: java.env });
+            }
             finally { await rm(file, { force: true }); }
           }); return json(res, 202, job);
         } catch (error) { await rm(file, { force: true }); throw error; }
@@ -102,9 +117,11 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'POST' && url.pathname === '/api/monitor') {
         const input = await body(req);
         if (typeof input.elevated !== 'boolean') throw new Error('Tùy chọn quyền Administrator không hợp lệ.');
-        const tools = await resolveTools(settings); if (!tools.monitor) throw new Error('Không tìm thấy tools/monitor.bat. Android Device Monitor chỉ có trong SDK Tools cũ. Hãy chọn SDK tương ứng trong Cài đặt.');
+        const tools = await resolveTools(settings); if (!tools.monitor) throw new Error('Không tìm thấy Android Monitor trong SDK Tools cũ (tools/monitor.bat trên Windows, tools/monitor trên macOS). Hãy chọn SDK tương ứng trong Cài đặt.');
+        if (!['win32', 'darwin'].includes(process.platform)) throw new Error('Android Monitor được hỗ trợ trên Windows và macOS với SDK Tools cũ.');
+        if (process.platform === 'darwin' && input.elevated) throw new Error('Trên macOS, hãy mở Android Monitor bằng quyền người dùng hiện tại.');
         const job = startJob('monitor', 'Mở Android Device Monitor', tools.monitor, async log => {
-          if (process.platform !== 'win32') throw new Error('Tính năng mở monitor.bat yêu cầu Windows.');
+          if (process.platform === 'darwin') return launchMacMonitor(tools.monitor, { onOutput: log });
           const script = `$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [Console]::OutputEncoding; try { Start-Process -FilePath '${tools.monitor.replaceAll("'", "''")}' ${input.elevated ? '-Verb RunAs' : ''} -WindowStyle Hidden; Write-Output 'Đã gửi yêu cầu mở Android Monitor.' } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }`;
           return execute('powershell.exe', ['-NoProfile', '-NonInteractive', '-InputFormat', 'Text', '-OutputFormat', 'Text', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { onOutput: log, timeout: 120000 });
         }); return json(res, 202, job);
@@ -123,11 +140,32 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { if (!res.headersSent && !res.destroyed) json(res, 400, { error: error.message }); }
 });
 server.on('error', error => {
+  rejectReady(error);
   if (error.code === 'EADDRINUSE') {
-    console.error(`\n  Không thể khởi động devkit: cổng ${port} đang được sử dụng.\n  Nếu devkit đã chạy, mở http://localhost:${port}\n  Hoặc dừng phiên cũ bằng Ctrl+C và chạy lại.\n  Để dùng cổng khác trong PowerShell:\n    $env:PORT = '${port === 3211 ? 3212 : 3211}'\n    npm start\n`);
+    const nextPort = port === 3211 ? 3212 : 3211;
+    const instruction = process.platform === 'win32' ? `    $env:PORT = '${nextPort}'\n    npm start` : `    PORT=${nextPort} npm start`;
+    console.error(`\n  Không thể khởi động devkit: cổng ${port} đang được sử dụng.\n  Nếu devkit đã chạy, mở http://localhost:${port}\n  Hoặc dừng phiên cũ bằng Ctrl+C và chạy lại.\n  Để dùng cổng khác:\n${instruction}\n`);
   } else {
     console.error(`\n  Không thể khởi động devkit: ${error.message}\n`);
   }
   process.exitCode = 1;
 });
-server.listen(port, '127.0.0.1', () => console.log(`\n  devkit · Your everyday dev companion\n  Open http://localhost:${port}\n  Local only · Ctrl+C to stop\n`));
+server.listen(port, '127.0.0.1', () => {
+  port = server.address().port;
+  console.log('\n  devkit · Your everyday dev companion\n  Open http://localhost:' + port + '\n  Local only · Ctrl+C to stop\n');
+  resolveReady({ port, url: 'http://127.0.0.1:' + port });
+});
+let stopPromise;
+export function stopServer() {
+  if (stopPromise) return stopPromise;
+  shuttingDown = true;
+  stopPromise = (async () => {
+    const closed = new Promise(resolve => server.close(resolve));
+    server.closeAllConnections();
+    await stopCommands();
+    await Promise.allSettled([...runningTasks]);
+    await saveQueue.catch(() => {});
+    await closed;
+  })();
+  return stopPromise;
+}

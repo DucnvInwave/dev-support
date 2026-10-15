@@ -25,8 +25,8 @@ Khi đó mở **http://localhost:3211**. Server sẽ báo rõ khi trùng cổng 
 ## Cấu hình công cụ
 
 - **ADB:** Cài Android SDK Platform Tools. Devkit tự tìm qua `ANDROID_SDK_ROOT`, `ANDROID_HOME`, Android SDK mặc định, SDK đi kèm Unity Hub trên Windows và `PATH`. Có thể ghi đè Android SDK root hoặc đường dẫn `adb.exe` trong **Cài đặt**. Bật USB debugging và cấp quyền trên điện thoại. Khi có nhiều thiết bị, chọn đúng thiết bị trước khi chạy.
-- **Firebase CLI:** Cài `npm install -g firebase-tools`, sau đó chạy `firebase login` trong terminal bằng cùng tài khoản Windows đang chạy server. Có thể đặt đường dẫn `firebase.cmd` hoặc `firebase.js` trong Cài đặt. Tài khoản cần quyền upload symbols cho Firebase app đã chọn. Việc phát hiện CLI chưa đồng nghĩa đã đăng nhập.
-- **Android Monitor:** Cần **Windows**, Android SDK Tools cũ có `tools/monitor.bat` và phiên bản Java tương thích. SDK mới đã loại bỏ công cụ này. Chọn SDK root phù hợp trong Cài đặt. Tùy chọn Administrator dùng `Start-Process -Verb RunAs -WindowStyle Hidden`; Windows có thể yêu cầu chấp nhận UAC. Kết quả thành công xác nhận đã gửi yêu cầu mở tiến trình, không xác nhận GUI Java đã khởi động hoàn tất.
+- **Firebase CLI:** Upload native symbols còn cần Java cài trên máy (khuyến nghị JDK 17 64-bit). Bộ cài Electron chưa kèm Java. Kiểm tra `java -version`; có thể đặt `JAVA_HOME` tới JDK, sau đó thoát hẳn Devkit và mở lại để nhận môi trường mới. Cài `npm install -g firebase-tools`, sau đó chạy `firebase login` trong terminal bằng cùng tài khoản người dùng đang chạy Devkit. Có thể đặt đường dẫn `firebase.cmd` hoặc `firebase.js` trong Cài đặt. Tài khoản cần quyền upload symbols cho Firebase app đã chọn. Việc phát hiện CLI chưa đồng nghĩa đã đăng nhập.
+- **Android Monitor:** Cần Android SDK Tools cũ có `tools/monitor.bat` trên Windows hoặc `tools/monitor` trên macOS, cùng Java/SWT tương thích với hệ điều hành và kiến trúc máy. Bản SDK Tools cũ có thể không chạy trên Mac Apple Silicon. SDK mới đã loại bỏ công cụ này. Chọn SDK root phù hợp trong Cài đặt. Tùy chọn Administrator dùng `Start-Process -Verb RunAs -WindowStyle Hidden`; Windows có thể yêu cầu chấp nhận UAC. Kết quả thành công xác nhận đã gửi yêu cầu mở tiến trình, không xác nhận GUI Java đã khởi động hoàn tất.
 
 ## Các thao tác
 
@@ -91,9 +91,38 @@ Cấu hình, tối đa 100 tác vụ gần nhất và file tạm nằm trong `.l
 - Lựa chọn ứng dụng/package, thiết bị và giao diện sáng/tối nằm trong localStorage của trình duyệt với tiền tố `devkit.`; dữ liệu tách theo trình duyệt, profile và địa chỉ web (bao gồm cổng).
 - Người clone và chạy dự án trên máy khác sẽ có dữ liệu local riêng. GitHub Pages chỉ phục vụ file tĩnh, không chạy Node.js, ADB, Firebase CLI hoặc Android Monitor. Các chức năng hiện tại cần backend Node local; đưa frontend lên Pages riêng chưa đủ để sử dụng chúng.
 
-## Ứng dụng Windows EXE
+## Ứng dụng Electron — Windows và macOS
 
-Bản đóng gói nằm trong `dist/Devkit-1.0.2-win-x64.exe`. Chỉ cần gửi một file EXE này; người dùng không cần clone repository, cài Node.js hay chạy `npm start`. Hỗ trợ Windows 10/11 x64 với .NET Framework 4.8.
+Bản Electron mở Devkit trong cửa sổ riêng, có sẵn runtime; người dùng không cần cài Node.js để mở app. Backend tự chạy khi mở app và dừng khi chọn **Devkit → Dừng và thoát**. Nút X ẩn cửa sổ xuống khay hệ thống nếu khay khả dụng; nhấp đúp biểu tượng khay hoặc chọn **Mở Devkit** để mở lại. Nếu đang có tác vụ, app hỏi trước khi thoát. App chọn cổng local trống, không dừng ứng dụng đang chiếm cổng 3210. Thoát bản launcher cũ trước khi dùng Electron với cùng thư mục dữ liệu.
+
+- **Windows 10/11 x64:** chạy `dist/electron/Devkit-1.1.2-Windows-x64-Setup.exe`, chọn vị trí cài đặt rồi mở Devkit từ shortcut. Bản chưa có chữ ký số.
+- **macOS 13+:** dùng DMG/ZIP đúng kiến trúc `arm64` (Apple Silicon) hoặc `x64` (Intel), kéo Devkit.app vào Applications. Gói chưa có Apple Developer ID/notarization; nếu bị chặn, dùng Privacy & Security → Open Anyway cho gói từ nguồn bạn tin tưởng.
+- JSON Formatter và CSV Viewer dùng ngay. ADB/Android SDK, Firebase CLI cùng đăng nhập Firebase và SDK Tools/Java cũ cho Android Monitor vẫn cần cài trên từng máy. Runtime Electron chạy được Firebase CLI dạng JS đã cài; gói này chưa bundle Firebase CLI hoặc ADB.
+- **Cài đặt** có nút chọn SDK/ADB/Firebase qua hộp thoại và nút mở thư mục dữ liệu. Chọn đường dẫn rồi nhấn **Lưu cài đặt**.
+- Windows lưu settings/history tại `%LOCALAPPDATA%\Devkit\data`, dùng tiếp dữ liệu bản EXE cũ. Mac lưu tại `~/Library/Application Support/Devkit/data`. Log Electron là `electron.log` trong thư mục Devkit tương ứng. Dữ liệu `.local` khi chạy mã nguồn không tự chuyển; có thể chép settings.json/history.json khi cả hai bản đã dừng.
+- Theme/lựa chọn dự án và thiết bị nằm trong localStorage của profile Electron riêng, tách với trình duyệt; phân biệt theo cổng local. Nội dung JSON/CSV chỉ nằm trong bộ nhớ và mất khi tải lại/đóng ứng dụng.
+- Gói ứng dụng dùng danh sách file cho phép, không chứa `.local`, lịch sử, symbol hay thông tin đăng nhập từ máy build. Chưa có chức năng tự cập nhật; cài bản mới sau khi thoát app cũ.
+
+Phát triển và build (cần Node.js 22+ trên máy build):
+
+```sh
+npm ci
+npm run electron
+npm test
+npm run electron:smoke
+```
+
+Bản 1.1.2 ghi kết quả kiểm tra Java vào tác vụ, hỗ trợ `JAVA_HOME` và chạy Firebase với `--debug` để hiển thị cả lỗi Java trên stderr. Không tự gửi lại tác vụ khi thất bại. Log chi tiết Firebase nằm trong thư mục làm việc bên dưới.
+
+Firebase CLI và Java Buildtools chạy trong thư mục `firebase-workspace` bên dưới thư mục dữ liệu Devkit. Cache `.crashlytics` được ghi tại đó, không ghi vào thư mục cài đặt (ví dụ `C:\Program Files\Devkit`). Bản 1.1.1 sửa lỗi không tạo được `dump_syms.exe` khi cài vào thư mục được bảo vệ; không cần chạy app bằng quyền Administrator.
+
+Build Windows trên Windows: `npm run electron:dist:win`. Build Mac trên Mac: `npm run electron:dist:mac -- --arm64` hoặc `npm run electron:dist:mac -- --x64`. Kết quả nằm trong `dist/electron/`. Kiểm tra bản Windows đã đóng gói bằng `node scripts/check-electron.mjs --packaged dist/electron/win-unpacked/Devkit.exe`. Bộ kiểm tra dùng dữ liệu/profile riêng trong `.build`, CLI giả lập và không gửi symbol lên Firebase.
+
+Workflow [Build Electron desktop](.github/workflows/build-electron.yml) chạy thủ công qua **Actions → Build Electron desktop → Run workflow**, hoặc khi push tag `v*`. Workflow build và kiểm tra app trên Windows x64, Mac Intel và Mac Apple Silicon; tải bộ cài tại Artifacts của run thành công. Không tự tạo GitHub Release. Hai workflow launcher cũ vẫn được giữ để tương thích. Bản Mac cần job trên runner Mac thành công trước khi phân phối.
+
+## Ứng dụng Windows EXE (launcher cũ)
+
+Bản đóng gói nằm trong `dist/Devkit-1.0.3-win-x64.exe`. Chỉ cần gửi một file EXE này; người dùng không cần clone repository, cài Node.js hay chạy `npm start`. Hỗ trợ Windows 10/11 x64 với .NET Framework 4.8.
 
 Nhấp đúp EXE để mở cửa sổ Devkit. Lần đầu ứng dụng giải nén runtime vào `%LOCALAPPDATA%\Devkit\runtime`, chạy backend bằng Node đi kèm và mở giao diện local trong trình duyệt mặc định. Nút **Mở Devkit** mở lại trang; nút **X** hoặc thu nhỏ sẽ ẩn xuống khay hệ thống và giữ backend chạy. Chọn **Dừng và thoát** trong cửa sổ hoặc menu khay hệ thống để dừng backend và các tiến trình con do nó chạy. Khi có tác vụ đang chạy, ứng dụng hỏi trước khi dừng.
 
@@ -115,6 +144,33 @@ npm run package:windows
 Script dùng trình biên dịch C# và ZIP có sẵn trong Windows; không cần npm dependency hoặc tải binary đóng gói. Kết quả gồm EXE, checksum SHA-256 và `README-Windows.txt`. Thư mục `dist/` và `.build/` được bỏ qua bởi Git. Mỗi bản dùng Node runtime của máy build, vì vậy nên build bằng Node 22 LTS đã cập nhật.
 
 Workflow **Build Windows EXE** chạy thủ công trong tab Actions hoặc khi push tag `v*`. Workflow chạy test, build, kiểm tra EXE khi PATH không có Node và xuất artifact **Devkit-Windows-x64** để tải xuống. Không tự xuất bản GitHub Release.
+
+## Ứng dụng macOS (launcher cũ)
+
+File **.exe chỉ chạy trên Windows**. Mac sử dụng **Devkit.app** riêng, hỗ trợ macOS 13+:
+
+- **Apple Silicon** (M1/M2/M3/M4…): tải gói **Devkit-macOS-arm64**.
+- **Intel**: tải gói **Devkit-macOS-x64**.
+
+Workflow [Build macOS App](.github/workflows/build-macos.yml) build trên runner macOS riêng cho từng kiến trúc. Sau khi commit và push các thay đổi này lên GitHub, vào **Actions → Build macOS App → Run workflow**. Khi hai job thành công, tải artifact tương ứng, giải nén artifact rồi giải nén file `Devkit-VERSION-macos-ARCH.zip` bên trong. Kéo **Devkit.app** vào **Applications** và mở. Không đổi đuôi EXE thành APP.
+
+Ứng dụng chứa Node.js riêng, tự mở trình duyệt tại localhost và chọn cổng trống 3210–3259. Đóng cửa sổ vẫn giữ backend chạy; menu **devkit.** trên thanh menu cho phép mở lại trang/cửa sổ hoặc **Dừng và thoát**. Khi có tác vụ chạy, ứng dụng hỏi trước khi thoát. Khi cập nhật, thoát bản cũ trước khi thay app. Một bản mở thứ hai dùng cùng thư mục dữ liệu sẽ mở lại backend đã chạy.
+
+Cài đặt/lịch sử lưu trong `~/Library/Application Support/Devkit/data`; log trong `~/Library/Application Support/Devkit/launcher.log`. Không tự sao chép dữ liệu Windows. Đường dẫn ADB/Firebase/SDK và đăng nhập Firebase cần thiết lập trên từng máy. JSON/CSV dùng ngay; Firebase DebugView và Crashlytics cần ADB/Firebase CLI cho macOS. SDK mặc định là `~/Library/Android/sdk`, đồng thời tìm SDK trong Unity Hub. Bản npm Firebase được chạy bằng Node đi kèm, kể cả khi Finder không có Node trong PATH. Android Monitor vẫn cần SDK Tools/Java cũ tương thích; tùy chọn Administrator chỉ dành cho Windows.
+
+Gói được ký ad-hoc, chưa có Apple Developer ID/notarization. Nếu macOS chặn ứng dụng từ nguồn bạn tin tưởng, dùng **System Settings → Privacy & Security → Open Anyway**. Không cần tắt Gatekeeper.
+
+Build thủ công trên đúng dòng máy Mac với Node.js 22+ và Xcode Command Line Tools:
+
+```sh
+npm test
+npm run package:macos
+node scripts/check-macos.mjs
+```
+
+Kết quả trong `dist/Devkit-1.0.3-macos-arm64.zip` hoặc `dist/Devkit-1.0.3-macos-x64.zip`, kèm SHA-256. Bộ kiểm tra giải nén ZIP, chạy app hai lần với PATH không có Node, kiểm tra API/tài nguyên, backend được dừng và cài đặt/lịch sử được giữ nguyên. Workflow không tự tạo GitHub Release. Máy Windows không thể biên dịch hoặc xác nhận chạy launcher Cocoa; cần job macOS thành công trước khi phân phối gói.
+
+Để dùng ngay khi chưa có gói app, cài Node.js 22 trên Mac, mở Terminal tại mã nguồn rồi chạy `npm start`; mở `http://localhost:3210`. Các công cụ ADB/Firebase vẫn cần cài cho Mac.
 
 ## Deploy GitHub Pages
 

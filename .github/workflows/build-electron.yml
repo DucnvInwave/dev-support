@@ -1,0 +1,63 @@
+name: Build Electron desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x64
+            target: win
+            executable: dist/electron/win-unpacked/Devkit.exe
+          - os: macos-15
+            arch: arm64
+            target: mac
+            executable: dist/electron/mac-arm64/Devkit.app/Contents/MacOS/Devkit
+          - os: macos-15-intel
+            arch: x64
+            target: mac
+            executable: dist/electron/mac/Devkit.app/Contents/MacOS/Devkit
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Build installer
+        run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify packaged app
+        run: node scripts/check-electron.mjs --packaged "${{ matrix.executable }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Devkit-Electron-${{ matrix.target }}-${{ matrix.arch }}
+          if-no-files-found: error
+          path: |
+            dist/electron/*-Setup.exe
+            dist/electron/*.dmg
+            dist/electron/*.zip
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Electron-diagnostics-${{ matrix.target }}-${{ matrix.arch }}
+          include-hidden-files: true
+          path: |
+            .build/electron-smoke-*/electron-smoke.json
+            .build/electron-smoke-*/electron-smoke.png
+            .build/electron-smoke-*/electron.log

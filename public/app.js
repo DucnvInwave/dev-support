@@ -5,7 +5,7 @@ const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = { get(key, fallback = '') { try { return localStorage.getItem(`devkit.${key}`) ?? fallback; } catch { return fallback; } }, set(key, value) { try { localStorage.setItem(`devkit.${key}`, value); } catch {} } };
 const webMode = !(['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol === 'http:');
-const localDisconnectedMessage = 'Không tìm thấy Devkit đang chạy. Mở lại file EXE và bấm Mở Devkit, hoặc chạy npm start nếu dùng mã nguồn. Giữ ứng dụng chạy trong khi gửi file.';
+const localDisconnectedMessage = 'Không tìm thấy Devkit đang chạy. Mở lại ứng dụng Devkit (.exe trên Windows, .app trên Mac) và bấm Mở Devkit, hoặc chạy npm start nếu dùng mã nguồn. Giữ ứng dụng chạy trong khi gửi file.';
 const localOnlyMessage = 'Tính năng này cần bản local. Chạy npm start trên máy tính rồi mở http://localhost:3210.';
 const state = { token: '', settings: {}, settingsLoaded: false, status: null, jobs: [], view: 'overview', filter: 'all', file: null, pending: false, uploading: false, selectedJob: null, online: false, jobsLoaded: false, debugRequest: 0 };
 const mobileNav = matchMedia('(max-width:760px)');
@@ -145,6 +145,12 @@ async function refreshStatus(showMessage = false) {
   $('#refresh-devices').classList.add('refreshing');
   try {
     const status = await api('/status'); state.status = status; setConnection(true);
+    const onMac = status.platform === 'darwin';
+    $('#monitor-elevated').closest('label').hidden = onMac;
+    if (onMac) $('#monitor-elevated').checked = false;
+    $('.monitor-helper').textContent = onMac ? 'Cần SDK Tools cũ có tools/monitor và Java phù hợp với máy Mac.' : 'Windows có thể hỏi bạn xác nhận khi mở công cụ.';
+    $('#adb-path').placeholder = onMac ? '/Users/ten-ban/Library/Android/sdk/platform-tools/adb' : 'Ví dụ: C:\\Android\\Sdk\\platform-tools\\adb.exe';
+    $('#firebase-path').placeholder = onMac ? '/opt/homebrew/bin/firebase hoặc đường dẫn firebase.js' : 'Đường dẫn đến firebase.cmd hoặc firebase.js';
     const oldSerial = $('#device-select').value || store.get('serial');
     const connected = status.devices.filter(device => device.state === 'device');
     const select = $('#device-select');
@@ -159,7 +165,7 @@ async function refreshStatus(showMessage = false) {
     for (const [name, available] of Object.entries({ adb: !!status.tools.adb && !status.adbError, firebase: !!status.tools.firebase, monitor: !!status.tools.monitor })) {
       const node = $(`#env-${name}`); node.textContent = available ? 'Đã tìm thấy' : name === 'adb' && status.adbError ? 'Không phản hồi' : 'Chưa tìm thấy';
       node.className = `env-value ${available ? 'available' : 'unavailable'}`;
-      node.title = status.tools[name] || (name === 'monitor' ? 'Cần Android SDK Tools cũ có monitor.bat.' : 'Cấu hình đường dẫn trong Cài đặt.');
+      node.title = status.tools[name] || (name === 'monitor' ? 'Cần Android SDK Tools cũ: tools/monitor.bat trên Windows hoặc tools/monitor trên Mac.' : 'Cấu hình đường dẫn trong Cài đặt.');
     }
     renderDevices(); await readDebugState();
     if (showMessage) toast(status.adbError || (connected.length ? `Đã tìm thấy ${connected.length} thiết bị sẵn sàng.` : !status.tools.adb ? 'Chưa tìm thấy công cụ kết nối điện thoại. Xem phần Cài đặt hoặc Hướng dẫn để được hỗ trợ.' : 'Đã làm mới. Chưa có thiết bị được cấp quyền kết nối.'), !!status.adbError);
@@ -400,3 +406,25 @@ if (webMode) {
   setTimeout(poll, 1500);
   setInterval(() => { if (document.visibilityState !== 'hidden' && !state.pending && !state.uploading && !state.jobs.some(job => job.status === 'running')) refreshStatus(); }, 15000);
 }
+
+async function setupDesktop() {
+  if (!window.devkitDesktop) return;
+  try {
+    const info = await window.devkitDesktop.getInfo();
+    $('#runtime-location').textContent = 'Devkit ' + info.version;
+    for (const [kind, selector] of [['sdk', '#sdk-root'], ['adb', '#adb-path'], ['firebase', '#firebase-path']]) {
+      const input = $(selector), button = document.createElement('button');
+      button.type = 'button'; button.className = 'text-button'; button.dataset.desktopPath = kind;
+      button.textContent = kind === 'sdk' ? 'Chọn thư mục…' : 'Chọn file…';
+      button.onclick = async () => {
+        try { const selected = await window.devkitDesktop.choosePath(kind); if (selected) { input.value = selected; input.dispatchEvent(new Event('input', { bubbles: true })); } }
+        catch (error) { toast(error.message, true); }
+      };
+      input.after(button);
+    }
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'text-button'; button.textContent = 'Mở thư mục dữ liệu';
+    button.onclick = async () => { try { const error = await window.devkitDesktop.showDataFolder(); if (error) toast(error, true); } catch (error) { toast(error.message, true); } };
+    $('.settings-footer > span').append(' · ', button);
+  } catch (error) { toast(error.message, true); }
+}
+void setupDesktop();

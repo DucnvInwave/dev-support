@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { validPackage, validSerial, validAppId, debugArgs, parseDevices, execute, firebaseInvocation, validateZip, commandEnvironment } from '../server/tools.mjs';
+import { validPackage, validSerial, validAppId, debugArgs, parseDevices, execute, firebaseInvocation, validateZip, commandEnvironment, sdkCandidates, inspectJava } from '../server/tools.mjs';
 
 test('Windows commands receive required environment defaults without changing configured values', () => {
   const source = { SystemRoot: 'D:\\Windows', USERPROFILE: 'C:\\Users\\test', APPDATA: 'D:\\custom-profile' };
@@ -67,7 +67,7 @@ test('process runner terminates commands exceeding their timeout', async () => {
 test('symbols CLI keeps paths with spaces as a single argument', async () => {
   const cli = await firebaseInvocation('/firebase.js', '1:123:android:abc', 'C:/build symbols/symbols.zip');
   assert.equal(cli.file, process.execPath);
-  assert.deepEqual(cli.args, ['/firebase.js', 'crashlytics:symbols:upload', '--app=1:123:android:abc', 'C:/build symbols/symbols.zip', '--non-interactive']);
+  assert.deepEqual(cli.args, ['/firebase.js', 'crashlytics:symbols:upload', '--app=1:123:android:abc', 'C:/build symbols/symbols.zip', '--non-interactive', '--debug']);
   await assert.rejects(firebaseInvocation('/firebase.js', 'bad-app', 'x.zip'), /không hợp lệ/);
 });
 test('ZIP validation rejects renamed files, empty files and invalid ZIP signatures', async () => {
@@ -78,4 +78,46 @@ test('ZIP validation rejects renamed files, empty files and invalid ZIP signatur
       if (valid) await validateZip(file); else await assert.rejects(validateZip(file));
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+
+test('macOS SDK discovery includes Android Studio defaults and respects explicit SDK paths', () => {
+  assert.deepEqual(sdkCandidates({}, {}, 'darwin', '/Users/test'), ['/Users/test/Library/Android/sdk']);
+  assert.deepEqual(sdkCandidates({ sdkRoot: '/custom/sdk' }, { ANDROID_HOME: '/env/sdk', ANDROID_SDK_ROOT: '/env/sdk' }, 'darwin', '/Users/test'), ['/custom/sdk', '/env/sdk', '/Users/test/Library/Android/sdk']);
+  assert.deepEqual(sdkCandidates({}, { LOCALAPPDATA: 'C:/Users/test/AppData/Local' }, 'win32', ''), [path.win32.join('C:/Users/test/AppData/Local', 'Android', 'Sdk')]);
+});
+test('extensionless Firebase Node scripts use bundled Node without Node on PATH', { skip: process.platform === 'win32' }, async () => {
+  const temp = await mkdtemp(path.join(tmpdir(), 'firebase mac fixture '));
+  try {
+    const file = path.join(temp, 'firebase');
+    await writeFile(file, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));');
+    const invocation = await firebaseInvocation(file, '1:123:android:abc', '/build with spaces/symbols.zip');
+    assert.equal(invocation.file, process.execPath);
+    assert.equal(invocation.args[0], await realpath(file));
+    const result = await execute(invocation.file, invocation.args, { env: { ...process.env, PATH: '/usr/bin:/bin' } });
+    assert.equal(result.code, 0);
+    assert.deepEqual(JSON.parse(result.output), ['crashlytics:symbols:upload', '--app=1:123:android:abc', '/build with spaces/symbols.zip', '--non-interactive', '--debug']);
+  } finally { await rm(temp, { recursive: true, force: true }); }
+});
+
+test('Java preflight reports missing Java and preserves Java stderr', async () => {
+ const missing=await inspectJava({env:{PATH:''},run:async()=>{throw Object.assign(new Error('spawn java ENOENT'),{code:'ENOENT'})}});
+ assert.equal(missing.ready,false);assert.match(missing.message,/Chưa tìm thấy Java/);assert.match(missing.message,/JDK 17/);
+ const broken=await inspectJava({env:{PATH:''},run:async()=>({code:1,output:'UnsupportedClassVersionError: Java is too old'})});
+ assert.equal(broken.ready,false);assert.match(broken.message,/UnsupportedClassVersionError/);
+ const installed=await inspectJava({env:{PATH:''},run:async(file,args)=>{assert.equal(file,'java');assert.deepEqual(args,['-version']);return {code:0,output:'openjdk version \"17.0.12\"'};}});
+ assert.equal(installed.ready,true);assert.match(installed.message,/17.0.12/);
+});
+
+test('Java from JAVA_HOME is passed to Firebase through PATH', async () => {
+ const home=await mkdtemp(path.join(tmpdir(),'devkit java home '));
+ try {
+  await mkdir(path.join(home,'bin'));
+  const binary=path.join(home,'bin',process.platform==='win32'?'java.exe':'java');await writeFile(binary,'fixture');
+  const probe=await inspectJava({env:{JAVA_HOME:home,Path:'original-path'},run:async(file,args,options)=>{
+   assert.equal(file,binary);assert.equal(options.env.Path,path.join(home,'bin')+path.delimiter+'original-path');
+   return {code:0,output:'openjdk version 17'};
+  }});
+  assert.equal(probe.ready,true);assert.equal(probe.env.Path,path.join(home,'bin')+path.delimiter+'original-path');
+ } finally {await rm(home,{recursive:true,force:true});}
 });
