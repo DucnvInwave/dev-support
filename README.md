@@ -89,6 +89,18 @@ Cấu hình, tối đa 100 tác vụ gần nhất và file tạm nằm trong `.l
 - Lựa chọn ứng dụng/package, thiết bị và giao diện sáng/tối nằm trong localStorage của trình duyệt với tiền tố `devkit.`; dữ liệu tách theo trình duyệt, profile và địa chỉ web (bao gồm cổng).
 - Người clone và chạy dự án trên máy khác sẽ có dữ liệu local riêng. GitHub Pages chỉ phục vụ file tĩnh, không chạy Node.js, ADB, Firebase CLI hoặc Android Monitor. Các chức năng hiện tại cần backend Node local; đưa frontend lên Pages riêng chưa đủ để sử dụng chúng.
 
+## Deploy GitHub Pages
+
+Workflow [Deploy GitHub Pages](.github/workflows/deploy-pages.yml) tự chạy khi push lên nhánh `main`; cũng có thể chạy thủ công từ tab **Actions → Deploy GitHub Pages → Run workflow**.
+
+1. Trên GitHub, vào **Settings → Pages → Build and deployment → Source**, chọn **GitHub Actions**.
+2. Commit và push mã nguồn, gồm thư mục `.github/workflows`, lên nhánh `main`.
+3. Mở tab **Actions** để xem kết quả. Sau khi deploy thành công, URL website xuất hiện trong job **Deploy** và trang **Settings → Pages**.
+
+Workflow chạy `npm test` bằng Node.js 22 trên runner, sau đó đăng riêng thư mục `public/`. Frontend dùng HTML/CSS/JavaScript thuần nên không cần `npm install` hoặc `npm run build`. Đường dẫn tài nguyên tương đối hỗ trợ cả Pages tại domain gốc và đường dẫn repository. Backend, lịch sử và cài đặt trong `.local/` không nằm trong artifact website.
+
+**Giới hạn:** GitHub Pages chạy được JSON Formatter và CSV Viewer ngay trong trình duyệt, không cần Node trên máy người xem. Các tính năng ADB, upload symbols và Android Monitor vẫn cần mở bản local tại `http://localhost:3210`. Bản Pages hiện chưa có chế độ offline riêng nên vẫn báo mất kết nối backend; chạy `npm start` không tự kết nối trang Pages với backend local. Việc bổ sung kết nối đó cần cấu hình API, origin và xác thực riêng.
+
 ## Kiểm tra
 
 ```powershell
