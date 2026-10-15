@@ -506,3 +506,17 @@ body.csv-expanded { overflow: hidden; }.csv-expand-dialog { width: calc(100vw - 
 
 .csv-cell { display: block; max-height: none; }
 .csv-cell-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* The hosted website provides browser tools without a local command server. */
+.web-mode-notice { display: flex; align-items: flex-start; gap: 16px; padding: 22px 24px; margin: 0 0 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.web-mode-content { min-width: 0; flex: 1; }
+.web-mode-content>strong { font-size: 17px; font-weight: 650; }
+.web-mode-content p { margin: 6px 0 0; color: var(--subtle); font-size: 15px; line-height: 1.85; overflow-wrap: anywhere; }
+.web-mode-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.web-mode-help { margin-top: 16px; font-size: 15px; color: var(--subtle); }
+.web-mode-help summary { cursor: pointer; color: var(--soft-text); font-weight: 550; }
+.web-mode-help a { color: var(--soft-text); text-decoration: underline; text-underline-offset: 3px; }
+.web-mode-help a svg { width: 15px; height: 15px; vertical-align: middle; margin-left: 4px; }
+.web-mode-help code { font: 14px var(--mono); padding: 3px 6px; border-radius: 5px; background: var(--soft); color: var(--soft-text); white-space: nowrap; }
+.web-mode :disabled { cursor: not-allowed; }
+@media (max-width: 600px) { .web-mode-notice { padding: 18px; gap: 12px; }.web-mode-notice>.tool-icon { display: none; }.web-mode-actions .button { flex: 1; justify-content: center; } }

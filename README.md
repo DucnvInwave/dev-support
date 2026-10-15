@@ -99,7 +99,7 @@ Workflow [Deploy GitHub Pages](.github/workflows/deploy-pages.yml) tự chạy k
 
 Workflow chạy `npm test` bằng Node.js 22 trên runner, sau đó đăng riêng thư mục `public/`. Frontend dùng HTML/CSS/JavaScript thuần nên không cần `npm install` hoặc `npm run build`. Đường dẫn tài nguyên tương đối hỗ trợ cả Pages tại domain gốc và đường dẫn repository. Backend, lịch sử và cài đặt trong `.local/` không nằm trong artifact website.
 
-**Giới hạn:** GitHub Pages chạy được JSON Formatter và CSV Viewer ngay trong trình duyệt, không cần Node trên máy người xem. Các tính năng ADB, upload symbols và Android Monitor vẫn cần mở bản local tại `http://localhost:3210`. Bản Pages hiện chưa có chế độ offline riêng nên vẫn báo mất kết nối backend; chạy `npm start` không tự kết nối trang Pages với backend local. Việc bổ sung kết nối đó cần cấu hình API, origin và xác thực riêng.
+**Giới hạn:** GitHub Pages chạy được JSON Formatter và CSV Viewer ngay trong trình duyệt, không cần Node trên máy người xem. Các tính năng ADB, upload symbols và Android Monitor vẫn cần mở bản local tại `http://localhost:3210`. Bản Pages tự nhận diện chế độ web: không gọi/poll API local, không báo lỗi kết nối khi mở trang và vô hiệu hóa thao tác cần backend với hướng dẫn mở bản local. Lịch sử và cài đặt môi trường được xem/lưu trong bản local. Chạy `npm start` không tự kết nối trang Pages với backend local; hãy mở địa chỉ localhost. Chế độ local được dùng khi mở bằng HTTP tại `localhost` hoặc `127.0.0.1`.
 
 ## Kiểm tra
 

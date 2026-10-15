@@ -4,6 +4,8 @@ const $$ = selector => [...document.querySelectorAll(selector)];
 const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = { get(key, fallback = '') { try { return localStorage.getItem(`devkit.${key}`) ?? fallback; } catch { return fallback; } }, set(key, value) { try { localStorage.setItem(`devkit.${key}`, value); } catch {} } };
+const webMode = !(['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol === 'http:');
+const localOnlyMessage = 'Tính năng này cần bản local. Chạy npm start trên máy tính rồi mở http://localhost:3210.';
 const state = { token: '', settings: {}, status: null, jobs: [], view: 'overview', filter: 'all', file: null, pending: false, uploading: false, selectedJob: null, online: false, jobsLoaded: false, debugRequest: 0 };
 const mobileNav = matchMedia('(max-width:760px)');
 function syncSidebar() {
@@ -32,22 +34,48 @@ function toast(message, error = false) {
   setTimeout(() => node.remove(), error ? 11000 : 5500);
 }
 async function api(route, options = {}) {
+  if (webMode) throw new Error(localOnlyMessage);
   const response = await fetch(`/api${route}`, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), 'X-Devkit-Token': state.token, ...options.headers } });
   if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Chưa kết nối được ứng dụng. Hãy kiểm tra cửa sổ đang chạy devkit và tải lại trang.');
   const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Không thực hiện được thao tác.'); return result;
 }
 function setConnection(online) {
   state.online = online;
-  $('#connection-text').textContent = online ? 'Đã kết nối' : 'Mất kết nối';
-  $('#local-status').textContent = online ? 'Ứng dụng đã sẵn sàng' : 'Chưa kết nối được ứng dụng';
-  for (const element of ['#sidebar-dot', '#connection-dot']) $(element).classList.toggle('error', !online);
+  $('#connection-text').textContent = webMode ? 'Chế độ web' : online ? 'Đã kết nối' : 'Mất kết nối';
+  $('#local-status').textContent = webMode ? 'JSON & CSV đã sẵn sàng' : online ? 'Ứng dụng đã sẵn sàng' : 'Chưa kết nối được ứng dụng';
+  for (const element of ['#sidebar-dot', '#connection-dot']) $(element).classList.toggle('error', !webMode && !online);
 }
+
+function setupWebMode() {
+  document.body.classList.add('web-mode');
+  setConnection(false);
+  $('#runtime-location').textContent = 'Trong trình duyệt';
+  $('#hero-start').innerHTML = `Mở JSON Formatter${icon('arrow')}`;
+  $('#hero .hero-content>p').textContent = 'Đọc JSON và CSV ngay trong trình duyệt. Các công cụ Firebase và Android có trong bản local.';
+  for (const name of ['debug', 'symbols', 'monitor']) {
+    const card = $(`[data-tool="${name}"]`);
+    card.querySelector('.category-tag').textContent = 'Cần bản local';
+  }
+  const localControls = '#debug-enable, #debug-disable, #upload-symbols, #open-monitor, #clear-history, #refresh-devices, #device-page-refresh, #device-select, #dropzone, #symbols-file, #monitor-elevated, #settings-form input, #settings-form button';
+  $$(localControls).forEach(control => { control.disabled = true; control.title = localOnlyMessage; });
+  $('#device-select').replaceChildren(new Option('Thiết bị có trong bản local', ''));
+  $('#debug-state').innerHTML = `<span class="dot muted"></span><span>Mở bản local để bật/tắt DebugView trên điện thoại.</span>`;
+  for (const name of ['adb', 'firebase', 'monitor']) $(`#env-${name}`).textContent = 'Cần bản local';
+  $('#device-list').innerHTML = `<div class="device-empty"><span class="tool-icon icon-lime">${icon('phone')}</span><h3>Kết nối thiết bị trong bản local</h3><p>Bản web không truy cập ADB trên máy tính. Mở devkit tại localhost để xem các thiết bị đã kết nối.</p></div>`;
+  $('#devices-view .info-callout').hidden = true;
+  $('#empty-activity strong').textContent = 'Lịch sử nằm trong bản local';
+  $('#empty-activity p').textContent = 'Mở devkit trên máy đã chạy công cụ để xem lịch sử. JSON và CSV trên web không lưu nội dung vào lịch sử.';
+  $('#settings-view .panel-heading p').textContent = 'Đường dẫn công cụ và cài đặt môi trường được quản lý trong bản local trên từng máy tính.';
+  $('.settings-footer>span').innerHTML = `${icon('shield')}Mở bản local để xem và lưu cài đặt`;
+  updateBusy();
+}
+
 let csvViewer;
 function openCSVViewer() {
   if (csvViewer) return;
   csvViewer = import('./csv-ui.js').then(({ initCSVViewer }) => initCSVViewer({ toast, copy })).catch(() => {
     csvViewer = null;
-    $('#csv-status').textContent = 'Chưa nạp được công cụ CSV. Hãy khởi động lại Node rồi tải lại trang để cập nhật các file mới.';
+    $('#csv-status').textContent = webMode ? 'Chưa nạp được công cụ CSV. Hãy tải lại trang hoặc kiểm tra kết nối mạng.' : 'Chưa nạp được công cụ CSV. Hãy khởi động lại Node rồi tải lại trang để cập nhật các file mới.';
     $('#csv-status').className = 'json-status error';
   });
 }
@@ -60,6 +88,7 @@ function navigate(view, scroll = true) {
   $('#page-description').textContent = description;
   document.title = `${label} — devkit`;
   $$('.nav-item').forEach(button => { button.classList.toggle('active', button.dataset.view === view); if (button.dataset.view === view) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
+  $('#web-mode-notice').hidden = !webMode || ['json', 'csv'].includes(view);
   $('#hero').hidden = view !== 'overview';
   $('#tools-section').hidden = !['overview', 'debug', 'symbols', 'monitor'].includes(view);
   $('#tools-tabs').hidden = view !== 'overview';
@@ -71,9 +100,9 @@ function navigate(view, scroll = true) {
   $('#console-panel').hidden = ['json', 'csv'].includes(view) || !state.selectedJob;
   $('#devices-view').hidden = view !== 'devices';
   $('#settings-view').hidden = view !== 'settings';
-  $('#activity-layout').hidden = ['settings', 'devices', 'json', 'csv'].includes(view);
+  $('#activity-layout').hidden = ['settings', 'devices', 'json', 'csv'].includes(view) || (webMode && view !== 'history');
   $('#activity-layout').classList.toggle('history-mode', view === 'history');
-  $('#environment-panel').hidden = view === 'history';
+  $('#environment-panel').hidden = webMode || view === 'history';
   $('#all-history').hidden = view === 'history';
   $('#clear-history').hidden = view !== 'history';
   $('#sidebar').classList.remove('open');
@@ -93,6 +122,7 @@ function fillSettings() {
   $('#app-id').value = state.settings.appId || '1:528923424982:android:46195f809d709f94';
 }
 async function refreshStatus(showMessage = false) {
+  if (webMode) return;
   $('#refresh-devices').classList.add('refreshing');
   try {
     const status = await api('/status'); state.status = status; setConnection(true);
@@ -118,6 +148,7 @@ async function refreshStatus(showMessage = false) {
   finally { $('#refresh-devices').classList.remove('refreshing'); }
 }
 async function readDebugState() {
+  if (webMode) return;
   const requestId = ++state.debugRequest, serial = $('#device-select').value;
   if (!serial) { $('#debug-state').innerHTML = '<span class="dot muted"></span><span>Chọn thiết bị để kiểm tra trạng thái</span>'; return; }
   $('#debug-state').innerHTML = '<span class="dot muted"></span><span>Đang kiểm tra chế độ theo dõi…</span>';
@@ -154,6 +185,7 @@ function formatTime(value) {
   return date.toDateString() === today.toDateString() ? date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 async function refreshJobs() {
+  if (webMode) return;
   try {
     const jobs = await api('/jobs');
     const old = new Map(state.jobs.map(job => [job.id, job.status]));
@@ -167,9 +199,9 @@ async function refreshJobs() {
   } catch { /* Connection is reported by the status check. */ }
 }
 function updateBusy() {
-  const busy = state.pending || state.uploading || state.jobs.some(job => job.status === 'running');
+  const busy = webMode || state.pending || state.uploading || state.jobs.some(job => job.status === 'running');
   for (const selector of ['#debug-enable', '#debug-disable', '#upload-symbols', '#open-monitor', '#clear-history']) $(selector).disabled = busy;
-  $('#dropzone').disabled = state.uploading;
+  $('#dropzone').disabled = webMode || state.uploading;
   $('#app-id').disabled = state.uploading;
 }
 function openConsole(id, scroll = true) {
@@ -187,6 +219,7 @@ function renderConsole() {
   if (follow) output.scrollTop = output.scrollHeight;
 }
 async function action(route, data) {
+  if (webMode) { toast(localOnlyMessage); return; }
   if (!state.online) { toast('Chưa kết nối được ứng dụng. Hãy kiểm tra cửa sổ đang chạy devkit và tải lại trang.', true); return; }
   if (state.pending || state.uploading || state.jobs.some(job => job.status === 'running')) return;
   state.pending = true; updateBusy();
@@ -197,6 +230,7 @@ async function action(route, data) {
   finally { state.pending = false; updateBusy(); }
 }
 function setFile(file) {
+  if (webMode) { toast(localOnlyMessage); return; }
   if (!file) return;
   if (!/\.zip$/i.test(file.name)) { toast('Vui lòng chọn file symbols.zip do nhóm phát triển cung cấp.', true); return; }
   if (file.size > 1024 ** 3) { toast('File vượt quá giới hạn 1 GB.', true); return; }
@@ -207,6 +241,7 @@ function setFile(file) {
   $('.dropzone-icon').innerHTML = icon('file');
 }
 async function uploadSymbols() {
+  if (webMode) { toast(localOnlyMessage); return; }
   if (!state.file) { toast('Bạn hãy chọn file symbols.zip trước khi nhấn Gửi file.', true); $('#dropzone').focus(); return; }
   const appId = $('#app-id').value.trim();
   if (!/^1:\d+:android:[a-f\d]+$/i.test(appId)) { toast('Mã ứng dụng Firebase chưa đúng. Hãy kiểm tra lại mã hoặc dùng mã mặc định trong Cài đặt.', true); $('#app-id').focus(); return; }
@@ -292,7 +327,7 @@ window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('drop', event => event.preventDefault());
 $('#refresh-devices').onclick = () => refreshStatus(true);
 $('#device-page-refresh').onclick = () => refreshStatus(true);
-$('#hero-start').onclick = () => { navigate('debug'); $('#package-name').focus({ preventScroll: true }); };
+$('#hero-start').onclick = () => { navigate(webMode ? 'json' : 'debug'); if (!webMode) $('#package-name').focus({ preventScroll: true }); };
 $('#all-history').onclick = () => navigate('history');
 $('#environment-settings').onclick = () => navigate('settings');
 $('#clear-history').onclick = async () => {
@@ -300,7 +335,9 @@ $('#clear-history').onclick = async () => {
   catch (error) { toast(error.message, true); }
 };
 $('#settings-form').onsubmit = async event => {
-  event.preventDefault(); const button = $('#settings-form button[type="submit"]'); button.disabled = true;
+  event.preventDefault();
+  if (webMode) { toast(localOnlyMessage); return; }
+  const button = $('#settings-form button[type="submit"]'); button.disabled = true;
   try {
     state.settings = await api('/settings', { method: 'POST', body: JSON.stringify({ sdkRoot: $('#sdk-root').value.trim(), adbPath: $('#adb-path').value.trim(), firebasePath: $('#firebase-path').value.trim(), appId: $('#default-app-id').value.trim() }) });
     fillSettings(); toast('Đã lưu cài đặt trên máy của bạn.'); await refreshStatus();
@@ -330,7 +367,11 @@ window.addEventListener('hashchange', () => navigate(location.hash.slice(1), fal
 initJSONFormatter({ toast, copy });
 navigate(location.hash.slice(1) || 'overview', false);
 async function connect(notify = true) { try { const session = await api('/session'); state.token = session.token; state.settings = session.settings; fillSettings(); setConnection(true); await Promise.allSettled([refreshStatus(), refreshJobs()]); } catch { setConnection(false); if (notify) toast('Chưa kết nối được ứng dụng. Hãy chạy devkit trên máy và tải lại trang.', true); } }
-await connect();
 async function poll() { if (document.visibilityState !== 'hidden') { if (!state.online) await connect(false); else await refreshJobs(); } setTimeout(poll, state.jobs.some(job => job.status === 'running') ? 1000 : 3500); }
-setTimeout(poll, 1500);
-setInterval(() => { if (document.visibilityState !== 'hidden' && !state.pending && !state.uploading && !state.jobs.some(job => job.status === 'running')) refreshStatus(); }, 15000);
+if (webMode) {
+  setupWebMode();
+} else {
+  await connect();
+  setTimeout(poll, 1500);
+  setInterval(() => { if (document.visibilityState !== 'hidden' && !state.pending && !state.uploading && !state.jobs.some(job => job.status === 'running')) refreshStatus(); }, 15000);
+}
