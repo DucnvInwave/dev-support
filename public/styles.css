@@ -520,3 +520,21 @@ body.csv-expanded { overflow: hidden; }.csv-expand-dialog { width: calc(100vw - 
 .web-mode-help code { font: 14px var(--mono); padding: 3px 6px; border-radius: 5px; background: var(--soft); color: var(--soft-text); white-space: nowrap; }
 .web-mode :disabled { cursor: not-allowed; }
 @media (max-width: 600px) { .web-mode-notice { padding: 18px; gap: 12px; }.web-mode-notice>.tool-icon { display: none; }.web-mode-actions .button { flex: 1; justify-content: center; } }
+
+/* Edit values and groups directly from the readable JSON tree. */
+.json-leaf-heading { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.json-edit-button { margin-left: 8px; padding: 5px 9px; min-height: 34px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 14px; color: var(--primary); }
+.json-edit-button:hover { background: var(--soft); }
+.json-node-editor { margin: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.json-leaf>.json-node-editor { margin: 12px 0; }
+.json-edit-field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 13px; font-size: 15px; font-weight: 550; }
+.json-edit-field input,.json-edit-field select,.json-edit-field textarea { width: 100%; min-width: 0; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--input); color: var(--text); font: 400 16px/1.6 var(--font); }
+.json-edit-field textarea { min-height: 115px; resize: vertical; font-family: var(--mono); }
+.json-edit-field :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.json-edit-hint { margin: 0 0 13px; color: var(--subtle); font-size: 14px; overflow-wrap: anywhere; }
+.json-edit-error { margin: 10px 0; padding: 10px; border-radius: 7px; background: #fff0ea; color: #9a3c29; font-size: 14px; overflow-wrap: anywhere; }
+body.dark .json-edit-error { background: #432f29; color: #ffc2ae; }
+.json-edit-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.json-edit-actions .button { min-height: 40px; padding: 8px 16px; font-size: 15px; }
+
+.json-output-hint { flex-basis: 100%; font-size: 14px; }

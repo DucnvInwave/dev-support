@@ -1,0 +1,52 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          architecture: x64
+      - name: Run tests
+        run: npm test
+      - name: Package Windows app
+        run: npm run package:windows
+      - name: Smoke test without Node on PATH
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem -LiteralPath dist -Filter '*.exe' | Select-Object -First 1).FullName
+          $env:DEVKIT_DESKTOP_HOME = Join-Path $env:RUNNER_TEMP 'devkit-smoke'
+          $env:DEVKIT_DATA_DIR = Join-Path $env:DEVKIT_DESKTOP_HOME 'data'
+          $previousPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            $app = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -PassThru -WindowStyle Hidden
+            if (-not $app.WaitForExit(90000)) {
+              Stop-Process -Id $app.Id -Force
+              throw 'Devkit smoke test timed out.'
+            }
+            if ($app.ExitCode -ne 0) { throw "Devkit smoke test failed: $($app.ExitCode)" }
+            Get-Content -LiteralPath (Join-Path $env:DEVKIT_DESKTOP_HOME 'smoke-test.txt')
+          } finally {
+            $env:PATH = $previousPath
+          }
+      - name: Upload Windows download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Devkit-Windows-x64
+          path: |
+            dist/*.exe
+            dist/*.sha256
+            dist/README-Windows.txt
+          if-no-files-found: error
+          retention-days: 30

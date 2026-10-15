@@ -88,6 +88,29 @@ export function formatJSONDocument(node, { indent = '  ', sortKeys = false, esca
   return print(node, 0);
 }
 
+
+// Address members by their position, preserving duplicate keys and exact number tokens.
+export function editJSONDocument(source, path, replacement, key, options = {}) {
+  const document = parseJSONDocument(source);
+  const next = parseJSONDocument(replacement).node;
+  if (!Array.isArray(path) || path.some(index => !Number.isInteger(index) || index < 0)) throw new Error('Vị trí chỉnh sửa không hợp lệ.');
+  let current = document.node;
+  for (let level = 0; level < path.length; level++) {
+    const index = path[level];
+    if (!current.children || index >= current.children.length) throw new Error('Không tìm thấy trường cần sửa.');
+    const object = current.type === 'object';
+    if (level === path.length - 1) {
+      if (object) current.children[index] = { key: key === undefined ? current.children[index].key : String(key), node: next };
+      else current.children[index] = next;
+    } else current = object ? current.children[index].node : current.children[index];
+  }
+  const result = formatJSONDocument(path.length ? document.node : next, options);
+  if (new Blob([result]).size > MAX_JSON_BYTES) throw new Error('Nội dung sau chỉnh sửa vượt quá 5 MB.');
+  // Validate the combined depth, not only the replacement subtree.
+  parseJSONDocument(result);
+  return result;
+}
+
 // Token ranges refer to the original text; highlighting never rewrites JSON data.
 export function tokenizeJSON(source) {
   const tokens = [], lines = [0], stack = [];

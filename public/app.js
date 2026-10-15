@@ -5,8 +5,9 @@ const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = { get(key, fallback = '') { try { return localStorage.getItem(`devkit.${key}`) ?? fallback; } catch { return fallback; } }, set(key, value) { try { localStorage.setItem(`devkit.${key}`, value); } catch {} } };
 const webMode = !(['localhost', '127.0.0.1'].includes(location.hostname) && location.protocol === 'http:');
+const localDisconnectedMessage = 'Không tìm thấy Devkit đang chạy. Mở lại file EXE và bấm Mở Devkit, hoặc chạy npm start nếu dùng mã nguồn. Giữ ứng dụng chạy trong khi gửi file.';
 const localOnlyMessage = 'Tính năng này cần bản local. Chạy npm start trên máy tính rồi mở http://localhost:3210.';
-const state = { token: '', settings: {}, status: null, jobs: [], view: 'overview', filter: 'all', file: null, pending: false, uploading: false, selectedJob: null, online: false, jobsLoaded: false, debugRequest: 0 };
+const state = { token: '', settings: {}, settingsLoaded: false, status: null, jobs: [], view: 'overview', filter: 'all', file: null, pending: false, uploading: false, selectedJob: null, online: false, jobsLoaded: false, debugRequest: 0 };
 const mobileNav = matchMedia('(max-width:760px)');
 function syncSidebar() {
   const open = $('#sidebar').classList.contains('open');
@@ -35,12 +36,30 @@ function toast(message, error = false) {
 }
 async function api(route, options = {}) {
   if (webMode) throw new Error(localOnlyMessage);
-  const response = await fetch(`/api${route}`, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), 'X-Devkit-Token': state.token, ...options.headers } });
-  if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Chưa kết nối được ứng dụng. Hãy kiểm tra cửa sổ đang chạy devkit và tải lại trang.');
+  let response;
+  try {
+    response = await fetch(`/api${route}`, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), 'X-Devkit-Token': state.token, ...options.headers } });
+  } catch {
+    setConnection(false);
+    throw new Error(localDisconnectedMessage);
+  }
+  if (!response.headers.get('content-type')?.includes('application/json')) { setConnection(false); throw new Error(localDisconnectedMessage); }
   const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Không thực hiện được thao tác.'); return result;
+}
+async function ensureLocalSession() {
+  // Refresh the session before a command; the desktop backend may have restarted
+  // while this tab and the selected ZIP were kept open.
+  const session = await api('/session', { signal: AbortSignal.timeout(5000) });
+  if (typeof session.token !== 'string' || !/^[a-f0-9]{64}$/.test(session.token)) {
+    setConnection(false); throw new Error(localDisconnectedMessage);
+  }
+  state.token = session.token;
+  setConnection(true);
+  return session;
 }
 function setConnection(online) {
   state.online = online;
+  $('#local-connection-notice').hidden = webMode || online;
   $('#connection-text').textContent = webMode ? 'Chế độ web' : online ? 'Đã kết nối' : 'Mất kết nối';
   $('#local-status').textContent = webMode ? 'JSON & CSV đã sẵn sàng' : online ? 'Ứng dụng đã sẵn sàng' : 'Chưa kết nối được ứng dụng';
   for (const element of ['#sidebar-dot', '#connection-dot']) $(element).classList.toggle('error', !webMode && !online);
@@ -144,7 +163,7 @@ async function refreshStatus(showMessage = false) {
     }
     renderDevices(); await readDebugState();
     if (showMessage) toast(status.adbError || (connected.length ? `Đã tìm thấy ${connected.length} thiết bị sẵn sàng.` : !status.tools.adb ? 'Chưa tìm thấy công cụ kết nối điện thoại. Xem phần Cài đặt hoặc Hướng dẫn để được hỗ trợ.' : 'Đã làm mới. Chưa có thiết bị được cấp quyền kết nối.'), !!status.adbError);
-  } catch (error) { setConnection(false); if (showMessage) toast(error.message, true); }
+  } catch (error) { if (showMessage) toast(error.message, true); }
   finally { $('#refresh-devices').classList.remove('refreshing'); }
 }
 async function readDebugState() {
@@ -220,10 +239,10 @@ function renderConsole() {
 }
 async function action(route, data) {
   if (webMode) { toast(localOnlyMessage); return; }
-  if (!state.online) { toast('Chưa kết nối được ứng dụng. Hãy kiểm tra cửa sổ đang chạy devkit và tải lại trang.', true); return; }
   if (state.pending || state.uploading || state.jobs.some(job => job.status === 'running')) return;
   state.pending = true; updateBusy();
   try {
+    await ensureLocalSession();
     const job = await api(route, { method: 'POST', body: JSON.stringify(data) });
     state.jobs.unshift(job); renderJobs(); openConsole(job.id); toast('Đã bắt đầu. Kết quả sẽ được hiển thị bên dưới.');
   } catch (error) { toast(error.message, true); }
@@ -245,18 +264,19 @@ async function uploadSymbols() {
   if (!state.file) { toast('Bạn hãy chọn file symbols.zip trước khi nhấn Gửi file.', true); $('#dropzone').focus(); return; }
   const appId = $('#app-id').value.trim();
   if (!/^1:\d+:android:[a-f\d]+$/i.test(appId)) { toast('Mã ứng dụng Firebase chưa đúng. Hãy kiểm tra lại mã hoặc dùng mã mặc định trong Cài đặt.', true); $('#app-id').focus(); return; }
-  if (!state.online) { toast('Chưa kết nối được ứng dụng trên máy.', true); return; }
   if (state.pending || state.uploading || state.jobs.some(job => job.status === 'running')) return;
   state.uploading = true; updateBusy(); $('#upload-progress').hidden = false;
-  $('#upload-progress-label').textContent = 'Đang chuẩn bị file trên máy…';
+  $('#upload-progress-label').textContent = 'Đang kiểm tra kết nối Devkit…';
   $('#upload-progress-bar').value = 0;
   try {
+    await ensureLocalSession();
+    $('#upload-progress-label').textContent = 'Đang chuẩn bị file trên máy…';
     const job = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest(); xhr.open('POST', `/api/symbols?appId=${encodeURIComponent(appId)}`);
       xhr.timeout = 15 * 60 * 1000; xhr.setRequestHeader('X-Devkit-Token', state.token); xhr.setRequestHeader('Content-Type', 'application/zip');
       xhr.upload.onprogress = event => { if (event.lengthComputable) { const percent = Math.round(event.loaded / event.total * 100); $('#upload-progress-bar').value = percent; $('#upload-progress-label').textContent = percent === 100 ? 'Đang kiểm tra file và chuẩn bị gửi đến Firebase…' : `Đang chuẩn bị file trên máy… ${percent}%`; } };
       xhr.onload = () => { let result; try { result = JSON.parse(xhr.responseText); } catch { reject(new Error('Phản hồi từ backend không hợp lệ.')); return; } if (xhr.status >= 200 && xhr.status < 300) resolve(result); else reject(new Error(result.error || 'Upload không thành công.')); };
-      xhr.onerror = () => reject(new Error('Mất kết nối khi chuyển file. Kiểm tra backend local rồi thử lại.'));
+      xhr.onerror = () => { setConnection(false); reject(new Error(localDisconnectedMessage)); };
       xhr.ontimeout = () => reject(new Error('Chuyển file vượt quá thời gian chờ.')); xhr.send(state.file);
     });
     state.jobs.unshift(job); renderJobs(); openConsole(job.id); toast('Đang gửi file đến Firebase. Bạn có thể theo dõi kết quả bên dưới.');
@@ -325,6 +345,11 @@ for (const name of ['dragleave', 'drop']) $('#dropzone').addEventListener(name, 
 // Prevent a dropped ZIP from navigating the browser away from the workspace.
 window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('drop', event => event.preventDefault());
+$('#reconnect-local').onclick = async () => {
+  const button = $('#reconnect-local'); button.disabled = true;
+  try { await connect(false); if (state.online) toast('Đã kết nối lại Devkit. Bạn có thể gửi file.'); else toast(localDisconnectedMessage, true); }
+  finally { button.disabled = false; }
+};
 $('#refresh-devices').onclick = () => refreshStatus(true);
 $('#device-page-refresh').onclick = () => refreshStatus(true);
 $('#hero-start').onclick = () => { navigate(webMode ? 'json' : 'debug'); if (!webMode) $('#package-name').focus({ preventScroll: true }); };
@@ -366,7 +391,7 @@ document.addEventListener('keydown', event => { if ((event.ctrlKey || event.meta
 window.addEventListener('hashchange', () => navigate(location.hash.slice(1), false));
 initJSONFormatter({ toast, copy });
 navigate(location.hash.slice(1) || 'overview', false);
-async function connect(notify = true) { try { const session = await api('/session'); state.token = session.token; state.settings = session.settings; fillSettings(); setConnection(true); await Promise.allSettled([refreshStatus(), refreshJobs()]); } catch { setConnection(false); if (notify) toast('Chưa kết nối được ứng dụng. Hãy chạy devkit trên máy và tải lại trang.', true); } }
+async function connect(notify = true) { try { const session = await ensureLocalSession(); state.settings = session.settings; if (!state.settingsLoaded) { fillSettings(); state.settingsLoaded = true; } await Promise.allSettled([refreshStatus(), refreshJobs()]); } catch { setConnection(false); if (notify) toast(localDisconnectedMessage, true); } }
 async function poll() { if (document.visibilityState !== 'hidden') { if (!state.online) await connect(false); else await refreshJobs(); } setTimeout(poll, state.jobs.some(job => job.status === 'running') ? 1000 : 3500); }
 if (webMode) {
   setupWebMode();

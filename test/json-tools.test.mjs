@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseJSONDocument, formatJSONDocument } from '../public/json-tools.js';
+import { parseJSONDocument, formatJSONDocument, editJSONDocument } from '../public/json-tools.js';
 const format = (source, options) => formatJSONDocument(parseJSONDocument(source).node, options);
 
 test('formats nested objects, arrays and primitive roots with common indentation', () => {
@@ -41,4 +41,27 @@ test('limits nesting and handles large flat lists without changing the data', ()
   assert.throws(() => parseJSONDocument('['.repeat(130) + '0' + ']'.repeat(130)), /128/);
   const source = JSON.stringify(Array.from({ length: 10000 }, (_, i) => ({ id: i, active: i % 2 === 0 })));
   assert.equal(format(source, { indent: '' }), source);
+});
+
+test('edits a duplicate member by position while preserving large numbers and special keys', () => {
+  const source = '{"id":9007199254740993123,"a":1,"a":2,"__proto__":{"safe":true}}';
+  assert.equal(editJSONDocument(source, [2], '9007199254740993999', 'a', { indent: '' }), '{"id":9007199254740993123,"a":1,"a":9007199254740993999,"__proto__":{"safe":true}}');
+  assert.equal(editJSONDocument(source, [3, 0], 'false', undefined, { indent: '' }), '{"id":9007199254740993123,"a":1,"a":2,"__proto__":{"safe":false}}');
+  const renamed = editJSONDocument(source, [1], '"Tiếng Việt"', 'new"key', { indent: '' });
+  assert.equal(parseJSONDocument(renamed).node.children[1].key, 'new"key');
+  assert.equal(parseJSONDocument(renamed).node.children[1].node.value, 'Tiếng Việt');
+});
+test('edits nested arrays, containers and root values without changing sibling order', () => {
+  const source = '{"items":[{"x":1},2,3],"other":1.2000e-30}';
+  assert.equal(editJSONDocument(source, [0, 0], '{"nested":[false,null]}', undefined, { indent: '' }), '{"items":[{"nested":[false,null]},2,3],"other":1.2000e-30}');
+  assert.equal(editJSONDocument(source, [], 'false'), 'false');
+  assert.equal(editJSONDocument(source, [0, 1], '""', undefined, { indent: '' }), '{"items":[{"x":1},"",3],"other":1.2000e-30}');
+  assert.equal(editJSONDocument('{"z":0,"a":1}', [0], 'true', undefined, { sortKeys: true, indent: '' }), '{"a":1,"z":true}');
+});
+test('rejects invalid edits and excessive combined depth without changing the source', () => {
+  const source = '{"items":[1,2]}';
+  for (const path of [[2], [0, 9], [-1], [0.5], [0, 0, 0]]) assert.throws(() => editJSONDocument(source, path, 'null'));
+  assert.throws(() => editJSONDocument(source, [0], '{broken}'), SyntaxError);
+  assert.throws(() => editJSONDocument(source, [0], '['.repeat(128) + '0' + ']'.repeat(128)), /128/);
+  assert.equal(source, '{"items":[1,2]}');
 });

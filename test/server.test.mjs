@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
@@ -13,7 +13,7 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   const reservation = net.createServer();
   await new Promise(resolve => reservation.listen(0, '127.0.0.1', resolve));
   const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve));
-  const child = spawn(process.execPath, ['server/index.mjs'], { cwd: fileURLToPath(new URL('..', import.meta.url)), windowsHide: true, env: { ...process.env, PORT: String(port), DEVKIT_DATA_DIR: temp }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['server/index.mjs'], { cwd: fileURLToPath(new URL('..', import.meta.url)), windowsHide: true, env: { ...process.env, PORT: String(port), DEVKIT_DATA_DIR: temp, DEVKIT_DESKTOP_INSTANCE: '0123456789abcdef0123456789abcdef' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const base = `http://127.0.0.1:${port}`;
   t.after(async () => { const closed = new Promise(resolve => child.once('close', resolve)); child.kill(); await closed; await rm(temp, { recursive: true, force: true }); });
   await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error('Server startup timed out')), 10000); child.once('error', reject); child.stdout.on('data', chunk => { if (String(chunk).includes('Open http://')) { clearTimeout(timer); resolve(); } }); });
@@ -30,6 +30,9 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   assert.doesNotMatch(duplicateOutput, /Unhandled 'error' event|node:events|at Server\./);
   assert.equal((await fetch(base)).status, 200, 'the existing server is left running');
   assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  const health = await fetch(base + '/api/health');
+  assert.deepEqual(await health.json(), { app: 'devkit', runtime: process.version, desktop: true });
+  assert.equal(health.headers.get('x-devkit-instance'), '0123456789abcdef0123456789abcdef');
   for (const file of ['/styles.css', '/app.js', '/json-tools.js', '/json-ui.js', '/csv-tools.js', '/csv-ui.js', '/favicon.svg']) assert.equal((await fetch(base + file)).status, 200);
   assert.equal((await fetch(base + '/server/index.mjs')).status, 404);
   assert.equal((await fetch(base + '/.local/settings.json')).status, 404);
@@ -46,6 +49,29 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   assert.equal((await post('/api/settings', settings)).status, 200);
   assert.deepEqual((await fetch(base + '/api/session').then(r => r.json())).settings, settings);
   assert.deepEqual(await fetch(base + '/api/jobs').then(r => r.json()), []);
+  // A fake CLI exercises the complete ZIP upload path without contacting Firebase.
+  const fakeCLI = path.join(temp, 'fake firebase.cjs');
+  await writeFile(fakeCLI, 'console.log(JSON.stringify(process.argv.slice(2)));');
+  assert.equal((await post('/api/settings', { ...settings, firebasePath: fakeCLI })).status, 200);
+  const upload = await fetch(base + '/api/symbols?appId=' + encodeURIComponent(settings.appId), {
+    method: 'POST', headers: { 'Content-Type': 'application/zip', 'X-Devkit-Token': session.token },
+    body: Buffer.from('504b0506000000000000000000000000000000000000', 'hex')
+  });
+  assert.equal(upload.status, 202);
+  const accepted = await upload.json();
+  assert.equal(accepted.type, 'symbols');
+  let completed;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    completed = (await fetch(base + '/api/jobs').then(r => r.json())).find(job => job.id === accepted.id);
+    if (completed.status !== 'running' && completed.finishedAt) break;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.equal(completed.status, 'success', completed.output);
+  const args = JSON.parse(completed.output.trim());
+  assert.deepEqual(args.slice(0, 2), ['crashlytics:symbols:upload', '--app=' + settings.appId]);
+  assert.equal(path.dirname(args[2]), path.join(temp, 'uploads'));
+  assert.equal(args[3], '--non-interactive');
+  assert.deepEqual(await readdir(path.join(temp, 'uploads')), [], 'temporary ZIP removed after CLI exits');
   const hostStatus = await new Promise((resolve, reject) => { const request = http.get(base + '/api/session', { headers: { Host: `attacker.example:${port}` } }, res => { res.resume(); resolve(res.statusCode); }); request.on('error', reject); });
   assert.equal(hostStatus, 403);
 });

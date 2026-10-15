@@ -1,10 +1,10 @@
-import { parseJSONDocument, formatJSONDocument, MAX_JSON_BYTES, tokenizeJSON, findJSONBracketPair, highlightJSONRange } from './json-tools.js';
+import { parseJSONDocument, formatJSONDocument, editJSONDocument, MAX_JSON_BYTES, tokenizeJSON, findJSONBracketPair, highlightJSONRange } from './json-tools.js';
 
 export function initJSONFormatter({ toast, copy }) {
   const $ = selector => document.querySelector(selector);
   const input = $('#json-input'), output = $('#json-output'), tree = $('#json-tree');
   const inputEditor = createJSONCodeEditor(input), outputEditor = createJSONCodeEditor(output);
-  let timer, revision = 0, filename = 'formatted.json', formattedResult = ''; 
+  let timer, revision = 0, filename = 'formatted.json', formattedResult = '', activeEditor = input, activeTreeEdit = null;
   const expandDialog = $('#json-expand-dialog');
   let expanded = null;
   function rememberScroll(column) {
@@ -64,90 +64,186 @@ export function initJSONFormatter({ toast, copy }) {
   }
   function setStatus(message, kind = '') {
     $('#json-status').textContent = message; $('#json-status').className = 'json-status' + (kind ? ' ' + kind : '');
-    input.setAttribute('aria-invalid', String(kind === 'error'));
+    input.setAttribute('aria-invalid', String(kind === 'error' && activeEditor === input));
+    output.setAttribute('aria-invalid', String(kind === 'error' && activeEditor === output));
     if (expandDialog.open) syncExpandedStatus();
   }
-  function resetResult(message = 'Thông tin sẽ được chia thành từng nhóm để bạn dễ theo dõi.') {
-    formattedResult = ''; output.value = ''; outputEditor.refresh(); $('#json-output-meta').textContent = 'Chờ nội dung';
+  function resetResult(message = 'Thông tin sẽ được chia thành từng nhóm để bạn dễ theo dõi.', keepOutput = false) {
+    formattedResult = '';
+    if (!keepOutput) { output.value = ''; outputEditor.refresh(); }
+    $('#json-output-meta').textContent = keepOutput && output.value ? sizeLabel(byteSize(output.value)) : 'Chờ nội dung';
+    activeTreeEdit = null;
     tree.replaceChildren(element('p', 'json-empty', message));
     $('#json-summary').hidden = true;
     for (const id of ['json-copy', 'json-download', 'json-collapse']) $('#' + id).disabled = true;
   }
   function byteSize(text) { return new Blob([text]).size; }
   function sizeLabel(bytes) { return bytes < 1024 ? bytes + ' B' : (bytes / 1024).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' KB'; }
-  function renderNode(node, label, isRoot = false) {
+  function formatOptions() {
+    const indent = $('#json-indent').value;
+    return {
+      indent: indent === 'compact' ? '' : indent === 'tab' ? '\t' : ' '.repeat(Number(indent)),
+      sortKeys: $('#json-sort').checked, escapeUnicode: $('#json-unicode').checked,
+      newline: $('#json-newline').value === 'crlf' ? '\r\n' : '\n'
+    };
+  }
+  function editTreeNode(node, label, path, member, wrapper, button) {
+    if (activeTreeEdit) activeTreeEdit();
+    const currentRevision = revision;
+    const form = element('form', 'json-node-editor');
+    form.setAttribute('aria-label', 'Sửa ' + label);
+    let keyInput;
+    function field(caption, control) {
+      const fieldLabel = element('label', 'json-edit-field', caption);
+      fieldLabel.append(control); form.append(fieldLabel); return control;
+    }
+    if (member) {
+      keyInput = field('Tên trường', element('input', ''));
+      keyInput.value = label;
+    }
+    const type = field('Kiểu dữ liệu', element('select', ''));
+    for (const [value, text] of Object.entries(types)) {
+      const option = element('option', '', text); option.value = value; type.append(option);
+    }
+    type.value = node.type;
+    const value = field('Giá trị', element('textarea', 'json-edit-value'));
+    value.rows = 4; value.spellcheck = false;
+    const hint = element('p', 'json-edit-hint'); form.append(hint);
+    function setType() {
+      const original = type.value === node.type;
+      value.value = type.value === 'string' ? (original ? node.value : '') : original ? formatJSONDocument(node) : ({ number: '0', boolean: 'true', null: 'null', object: '{}', array: '[]' })[type.value];
+      value.readOnly = type.value === 'null';
+      hint.textContent = type.value === 'string' ? 'Nhập văn bản trực tiếp, không cần dấu ngoặc kép.' : type.value === 'boolean' ? 'Nhập true (Có) hoặc false (Không).' : type.value === 'null' ? 'Giá trị trống được lưu là null.' : type.value === 'number' ? 'Nhập số JSON. Số dài được giữ nguyên chính xác.' : 'Nhập JSON hợp lệ cho nhóm hoặc danh sách này.';
+    }
+    type.onchange = setType; setType();
+    const error = element('p', 'json-edit-error'); error.hidden = true; error.setAttribute('role', 'alert'); form.append(error);
+    const actions = element('div', 'json-edit-actions');
+    const save = element('button', 'button button-lime', 'Lưu'); save.type = 'submit';
+    const cancel = element('button', 'button button-secondary', 'Hủy'); cancel.type = 'button';
+    actions.append(save, cancel); form.append(actions);
+    function dismiss(focus = false) {
+      form.remove(); button.hidden = false;
+      activeTreeEdit = null;
+      if (focus) button.focus({ preventScroll: true });
+    }
+    activeTreeEdit = dismiss;
+    cancel.onclick = () => dismiss(true);
+    form.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismiss(true); }
+    });
+    form.onsubmit = event => {
+      event.preventDefault();
+      try {
+        if (revision !== currentRevision) throw new Error('Nội dung đã thay đổi. Hãy mở lại trường cần sửa.');
+        const replacement = type.value === 'string' ? JSON.stringify(value.value) : value.value;
+        if (parseJSONDocument(replacement).node.type !== type.value) throw new Error('Giá trị chưa đúng với kiểu dữ liệu đã chọn.');
+        const result = editJSONDocument(input.value, path, replacement, keyInput?.value, { ...formatOptions(), sortKeys: false });
+        const openGroups = new Map([...tree.querySelectorAll('details[open]')].map(group => [group.dataset.jsonPath, Number(group.dataset.jsonShown || 50)]));
+        const scroll = tree.scrollTop;
+        input.value = result; revision++; activeEditor = input;
+        format();
+        // Open parents before descendants so lazily rendered fields are restored too.
+        function restoreGroups(parent) {
+          for (const group of parent.querySelectorAll(':scope > details, :scope > .json-children > details')) {
+            if (openGroups.has(group.dataset.jsonPath)) {
+              group.open = true; group.dispatchEvent(new Event('toggle'));
+              group.dispatchEvent(new CustomEvent('json-load-to', { detail: openGroups.get(group.dataset.jsonPath) }));
+              restoreGroups(group);
+            }
+          }
+        }
+        restoreGroups(tree); tree.scrollTop = scroll;
+        const updated = [...tree.querySelectorAll('.json-node')].find(item => item.dataset.jsonPath === JSON.stringify(path));
+        updated?.querySelector('.json-edit-button')?.focus({ preventScroll: true });
+      } catch (problem) {
+        error.hidden = false;
+        error.textContent = (problem.line ? 'Dòng ' + problem.line + ', cột ' + problem.column + ': ' : '') + problem.message;
+        value.setAttribute('aria-invalid', 'true');
+      }
+    };
+    button.hidden = true;
+    if (wrapper.tagName === 'DETAILS') { wrapper.open = true; wrapper.querySelector('summary').after(form); }
+    else wrapper.append(form);
+    (keyInput || value).focus({ preventScroll: true });
+  }
+  function renderNode(node, label, isRoot = false, path = [], member = false) {
     const container = node.type === 'array' || node.type === 'object';
     const wrapper = element(container ? 'details' : 'div', 'json-node' + (container ? ' json-group' : ' json-leaf'));
-    const heading = container ? element('summary', 'json-node-heading') : wrapper;
+    wrapper.dataset.jsonPath = JSON.stringify(path);
+    const heading = container ? element('summary', 'json-node-heading') : element('div', 'json-leaf-heading');
     heading.append(element('span', 'json-key', label), element('span', 'json-type json-type-' + node.type, types[node.type]));
+    wrapper.append(heading);
+    const edit = element('button', 'text-button json-edit-button', 'Sửa'); edit.type = 'button'; edit.setAttribute('aria-label', 'Sửa ' + label);
+    edit.onclick = event => { event.preventDefault(); event.stopPropagation(); editTreeNode(node, label, path, member, wrapper, edit); };
     if (container) {
       const count = node.children.length;
-      heading.append(element('span', 'json-node-count', count.toLocaleString('vi-VN') + (node.type === 'array' ? ' phần tử' : ' trường')));
-      wrapper.append(heading);
+      heading.append(element('span', 'json-node-count', count.toLocaleString('vi-VN') + (node.type === 'array' ? ' phần tử' : ' trường')), edit);
       const body = element('div', 'json-children'); wrapper.append(body);
       let shown = 0, loaded = false;
-      const children = node.type === 'object' && $('#json-sort').checked ? [...node.children].sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0) : node.children;
+      const children = node.children.map((child, index) => ({ child, index }));
+      if (node.type === 'object' && $('#json-sort').checked) children.sort((a, b) => a.child.key < b.child.key ? -1 : a.child.key > b.child.key ? 1 : 0);
       function loadBatch() {
         body.querySelector(':scope > .json-more')?.remove();
         const limit = Math.min(shown + 50, count);
         for (; shown < limit; shown++) {
-          const child = children[shown];
-          body.append(renderNode(node.type === 'object' ? child.node : child, node.type === 'object' ? child.key : 'Phần tử ' + (shown + 1)));
+          const { child, index } = children[shown];
+          body.append(renderNode(node.type === 'object' ? child.node : child, node.type === 'object' ? child.key : 'Phần tử ' + (index + 1), false, [...path, index], node.type === 'object'));
         }
         if (!count) body.append(element('p', 'json-empty', 'Nhóm này chưa có dữ liệu.'));
         if (shown < count) {
           const more = element('button', 'text-button json-more', 'Xem thêm (' + (count - shown).toLocaleString('vi-VN') + ' còn lại)');
           more.onclick = loadBatch; body.append(more);
         }
-        loaded = true;
+        loaded = true; wrapper.dataset.jsonShown = String(shown);
       }
+      wrapper.addEventListener('json-load-to', event => { while (shown < Math.min(Number(event.detail), count)) loadBatch(); });
       wrapper.addEventListener('toggle', () => { if (wrapper.open && !loaded) loadBatch(); });
       if (isRoot) { wrapper.open = true; loadBatch(); }
     } else {
+      heading.append(edit);
       const text = node.type === 'boolean' ? (node.value ? 'Có (true)' : 'Không (false)') : node.type === 'null' ? 'Không có giá trị (null)' : node.type === 'string' && node.value === '' ? '(Văn bản rỗng)' : String(node.value);
       const value = element('span', 'json-value', text.length > 2000 ? text.slice(0, 2000) + '…' : text);
       wrapper.append(value);
-      if (text.length > 2000) wrapper.append(element('small', 'json-truncated', 'Đang xem 2.000 ký tự đầu. Nội dung đầy đủ nằm ở cột đã định dạng.'));
+      if (text.length > 2000) wrapper.append(element('small', 'json-truncated', 'Đang xem 2.000 ký tự đầu. Bấm Sửa để chỉnh toàn bộ nội dung.'));
     }
     return wrapper;
   }
-  function format() {
+  function format({ preserveOutput = false } = {}) {
     clearTimeout(timer);
     inputEditor.refresh();
     const source = input.value, bytes = byteSize(source);
     $('#json-input-meta').textContent = source ? sizeLabel(bytes) : 'Chưa có dữ liệu';
-    resetResult();
-    if (!source.trim()) { setStatus('Sẵn sàng. Nhập JSON hoặc mở file .json (tối đa 5 MB).'); return false; }
-    if (bytes > MAX_JSON_BYTES) { setStatus('Nội dung vượt quá 5 MB. Hãy chia dữ liệu thành file nhỏ hơn.', 'error'); return false; }
+    if (!source.trim()) { resetResult(undefined, preserveOutput); setStatus('Sẵn sàng. Nhập JSON hoặc mở file .json (tối đa 5 MB).'); return false; }
+    if (bytes > MAX_JSON_BYTES) { resetResult(undefined, preserveOutput); setStatus('Nội dung vượt quá 5 MB. Hãy chia dữ liệu thành file nhỏ hơn.', 'error'); return false; }
     try {
       const { node, stats } = parseJSONDocument(source);
-      const indent = $('#json-indent').value;
-      const result = formatJSONDocument(node, {
-        indent: indent === 'compact' ? '' : indent === 'tab' ? '\t' : ' '.repeat(Number(indent)),
-        sortKeys: $('#json-sort').checked, escapeUnicode: $('#json-unicode').checked,
-        newline: $('#json-newline').value === 'crlf' ? '\r\n' : '\n'
-      });
+      const result = formatJSONDocument(node, formatOptions());
       if (byteSize(result) > 20 * 1024 * 1024) throw new Error('Kết quả vượt quá 20 MB. Hãy chọn thu gọn hoặc chia nhỏ dữ liệu.');
-      formattedResult = result; output.value = result; outputEditor.refresh();
-      $('#json-output-meta').textContent = sizeLabel(byteSize(result));
+      formattedResult = preserveOutput ? output.value.replace(/\r?\n/g, formatOptions().newline) : result;
+      if (!preserveOutput) output.value = result;
+      outputEditor.refresh();
+      $('#json-output-meta').textContent = sizeLabel(byteSize(output.value));
+      activeTreeEdit = null;
       tree.replaceChildren(renderNode(node, 'Dữ liệu', true));
       const summary = $('#json-summary'); summary.hidden = false;
       summary.replaceChildren(...[stats.values.toLocaleString('vi-VN') + ' giá trị', stats.objects + ' nhóm', stats.arrays + ' danh sách'].map(text => element('span', '', text)));
       for (const id of ['json-copy', 'json-download', 'json-collapse']) $('#' + id).disabled = false;
-      setStatus(stats.duplicates ? 'JSON hợp lệ · Có ' + stats.duplicates + ' tên trường bị trùng trong cùng nhóm. Kết quả giữ nguyên các trường; hãy kiểm tra trước khi sử dụng.' : 'JSON hợp lệ · Đã định dạng. Số dài và thứ tự phần tử trong danh sách được giữ nguyên.', stats.duplicates ? 'warning' : 'success');
+      setStatus(stats.duplicates ? 'JSON hợp lệ · Có ' + stats.duplicates + ' tên trường bị trùng trong cùng nhóm. Kết quả giữ nguyên các trường; hãy kiểm tra trước khi sử dụng.' : 'JSON hợp lệ · Thay đổi được đồng bộ giữa các cột. Số dài và thứ tự phần tử được giữ nguyên.', stats.duplicates ? 'warning' : 'success');
       return true;
     } catch (error) {
-      resetResult('Sửa nội dung JSON ở cột đầu để xem thông tin.');
+      resetResult('Sửa nội dung JSON để xem thông tin.', preserveOutput);
       setStatus((error.line ? 'Lỗi tại dòng ' + error.line + ', cột ' + error.column + ': ' : '') + error.message, 'error');
       return false;
     }
   }
-  function changed() {
-    revision++; clearTimeout(timer); resetResult();
+  function changed(editor = activeEditor, preserveOutput = editor === output) {
+    activeEditor = editor;
+    if (editor === output) { input.value = output.value; inputEditor.refresh(); }
+    revision++; clearTimeout(timer); resetResult(undefined, preserveOutput);
     $('#json-input-meta').textContent = input.value ? sizeLabel(byteSize(input.value)) : 'Chưa có dữ liệu';
-    if (!input.value.trim()) { format(); return; }
+    if (!input.value.trim()) { format({ preserveOutput }); return; }
     setStatus($('#json-auto').checked ? 'Đang kiểm tra nội dung…' : 'Nội dung hoặc tùy chọn đã thay đổi. Nhấn Định dạng để cập nhật kết quả.');
-    if ($('#json-auto').checked) timer = setTimeout(format, 350);
+    if ($('#json-auto').checked) timer = setTimeout(() => format({ preserveOutput }), 350);
   }
   async function loadFile(file) {
     if (!file) return;
@@ -158,12 +254,13 @@ export function initJSONFormatter({ toast, copy }) {
       const text = await file.text();
       if (current !== revision) return;
       filename = file.name.replace(/\.[^.]+$/, '') + '.formatted.json';
-      input.value = text; format();
+      input.value = text; activeEditor = input; format();
     } catch { if (current === revision) setStatus('Không đọc được file. Hãy chọn lại hoặc dán nội dung trực tiếp.', 'error'); }
   }
-  input.addEventListener('input', changed);
-  for (const id of ['json-indent', 'json-newline', 'json-sort', 'json-unicode', 'json-auto']) $('#' + id).addEventListener('change', changed);
-  $('#json-format').onclick = format;
+  input.addEventListener('input', () => changed(input));
+  output.addEventListener('input', () => changed(output));
+  for (const id of ['json-indent', 'json-newline', 'json-sort', 'json-unicode', 'json-auto']) $('#' + id).addEventListener('change', () => changed(activeEditor, false));
+  $('#json-format').onclick = () => format();
   $('#json-open').onclick = () => { $('#json-file').value = ''; $('#json-file').click(); };
   $('#json-file').onchange = event => loadFile(event.target.files[0]);
   for (const name of ['dragenter', 'dragover']) input.addEventListener(name, event => { event.preventDefault(); input.classList.add('drag-over'); });
@@ -177,9 +274,9 @@ export function initJSONFormatter({ toast, copy }) {
   $('#json-sample').onclick = () => {
     filename = 'dancing-road.formatted.json';
     input.value = '{"game":"Dancing Road","package":"com.amanotes.pamadancingroad","active":true,"version":"3.0.0","levels":[{"name":"Bắt đầu","difficulty":"Dễ","rewards":100},{"name":"Tăng tốc","difficulty":"Vừa","rewards":250}],"player":{"id":9007199254740993123,"name":"Minh Anh","tags":["new","android"]},"note":null}';
-    revision++; format();
+    revision++; activeEditor = input; format();
   };
-  $('#json-clear').onclick = () => { revision++; input.value = ''; filename = 'formatted.json'; format(); input.focus(); };
+  $('#json-clear').onclick = () => { revision++; activeEditor = input; input.value = ''; filename = 'formatted.json'; format(); input.focus(); };
   $('#json-copy').onclick = () => { if (formattedResult) copy(formattedResult); };
   $('#json-download').onclick = () => {
     if (!formattedResult) return;

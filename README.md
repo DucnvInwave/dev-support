@@ -53,6 +53,8 @@ Mở **Đọc & định dạng JSON** từ menu hoặc trang Tổng quan. Không
 
 - Dán nội dung, mở file hoặc kéo thả một file JSON tối đa **5 MB**. Có ví dụ Dancing Road để dùng thử.
 - Thụt lề **2 dấu cách**, **4 dấu cách**, **tab**, hoặc **thu gọn một dòng**; sắp xếp tên trường ở mọi cấp; Unicode giữ nguyên hoặc chuyển thành `\uXXXX`; xuống dòng LF hoặc CRLF. Tùy chọn CRLF được giữ khi sao chép/tải file.
+- Có thể sửa trực tiếp ở cả cột JSON gốc và cột đã định dạng. Khi gõ ở cột 2, nội dung gốc được đồng bộ; con trỏ và nội dung đang gõ được giữ nguyên, kể cả JSON chưa hợp lệ. Cây thông tin và chức năng sao chép/tải xuống chỉ sẵn sàng khi JSON hợp lệ. Nhấn **Định dạng** để áp dụng lại kiểu trình bày đã chọn.
+- Ở cột thông tin, bấm **Sửa** tại trường hoặc nhóm để đổi tên trường, kiểu dữ liệu và giá trị. Văn bản nhập trực tiếp; nhóm/danh sách nhập dạng JSON. **Lưu** kiểm tra dữ liệu rồi cập nhật cả 3 cột; **Hủy** hoặc Esc bỏ phần đang sửa. Hoạt động cả khi phóng to.
 - Tự động định dạng sau khi nhập hoặc nhấn **Định dạng** khi tắt tự động. JSON sai được báo dòng/cột; kết quả cũ bị xóa để tránh dùng nhầm.
 - Hai cột mã JSON có màu riêng cho tên trường, văn bản, số, boolean và null; ngoặc và đường thụt lề đổi màu theo cấp lồng nhau. Có số dòng và làm nổi bật cặp ngoặc khi đặt con trỏ cạnh ngoặc. Hoạt động ở giao diện sáng/tối và khi phóng to; không thay đổi dữ liệu hoặc nội dung sao chép/tải xuống. Lớp màu chỉ dựng các dòng đang xem để giữ giao diện nhẹ; dòng thu gọn quá dài có giới hạn số token được tô cùng lúc.
 - Mỗi cột có nút **Phóng to** để mở cửa sổ rộng gần toàn màn hình. Vẫn có thể sửa nội dung gốc, sao chép/tải kết quả hoặc mở/thu nhóm thông tin trong cửa sổ này. Nhấn **Thu nhỏ** hoặc **Esc** để trở lại 3 cột; nội dung được giữ nguyên.
@@ -88,6 +90,31 @@ Cấu hình, tối đa 100 tác vụ gần nhất và file tạm nằm trong `.l
 - `.local/` đã có trong `.gitignore`, nên Git không thêm dữ liệu này khi commit thông thường. File đã được theo dõi từ trước vẫn cần được gỡ khỏi Git nếu có.
 - Lựa chọn ứng dụng/package, thiết bị và giao diện sáng/tối nằm trong localStorage của trình duyệt với tiền tố `devkit.`; dữ liệu tách theo trình duyệt, profile và địa chỉ web (bao gồm cổng).
 - Người clone và chạy dự án trên máy khác sẽ có dữ liệu local riêng. GitHub Pages chỉ phục vụ file tĩnh, không chạy Node.js, ADB, Firebase CLI hoặc Android Monitor. Các chức năng hiện tại cần backend Node local; đưa frontend lên Pages riêng chưa đủ để sử dụng chúng.
+
+## Ứng dụng Windows EXE
+
+Bản đóng gói nằm trong `dist/Devkit-1.0.2-win-x64.exe`. Chỉ cần gửi một file EXE này; người dùng không cần clone repository, cài Node.js hay chạy `npm start`. Hỗ trợ Windows 10/11 x64 với .NET Framework 4.8.
+
+Nhấp đúp EXE để mở cửa sổ Devkit. Lần đầu ứng dụng giải nén runtime vào `%LOCALAPPDATA%\Devkit\runtime`, chạy backend bằng Node đi kèm và mở giao diện local trong trình duyệt mặc định. Nút **Mở Devkit** mở lại trang; nút **X** hoặc thu nhỏ sẽ ẩn xuống khay hệ thống và giữ backend chạy. Chọn **Dừng và thoát** trong cửa sổ hoặc menu khay hệ thống để dừng backend và các tiến trình con do nó chạy. Khi có tác vụ đang chạy, ứng dụng hỏi trước khi dừng.
+
+Nếu tab báo mất kết nối khi gửi symbols, mở lại EXE rồi bấm **Mở Devkit** để đến đúng địa chỉ. Khi backend chạy lại ở cùng địa chỉ, trang tự kết nối lại; nút **Kết nối lại** cũng kiểm tra kết nối mà không cần tải lại trang. Giữ ứng dụng chạy trong khi upload.
+
+Cổng mặc định là 3210; nếu bận, ứng dụng chọn một cổng trống trong 3211–3259. Một bản EXE thứ hai sẽ mở lại giao diện của bản đang chạy, không khởi động backend thứ hai.
+
+- Cài đặt/lịch sử của bản EXE nằm trong `%LOCALAPPDATA%\Devkit\data`; log khởi động tại `%LOCALAPPDATA%\Devkit\launcher.log`. Có thể ghi đè thư mục bằng `DEVKIT_DATA_DIR` và `DEVKIT_DESKTOP_HOME`.
+- Gói chỉ chứa mã ứng dụng, tài nguyên giao diện, Node runtime và giấy phép Node; không chứa `.local/`, tài khoản Firebase, symbols hoặc dữ liệu cá nhân trên máy build. Dữ liệu nguồn cũ không tự được sao chép. Khi ứng dụng đã dừng, có thể chép `settings.json` và `history.json` sang thư mục data để dùng tiếp; đường dẫn công cụ cần phù hợp với máy đích.
+- ADB, Firebase CLI/tài khoản đăng nhập, SDK Tools cũ và Java vẫn cần được chuẩn bị riêng. Firebase có thể dùng bản standalone `firebase.exe` hoặc bản `firebase.js`/`firebase.cmd` có sẵn; bản JS dùng Node đi kèm. EXE chưa có chữ ký số.
+- EXE mở giao diện **local** để dùng đầy đủ tính năng. Kết nối điều khiển từ GitHub Pages tới máy tính chưa được bổ sung.
+
+Build lại trên Windows x64 với Node.js 22+ và .NET Framework 4.8:
+
+```powershell
+npm run package:windows
+```
+
+Script dùng trình biên dịch C# và ZIP có sẵn trong Windows; không cần npm dependency hoặc tải binary đóng gói. Kết quả gồm EXE, checksum SHA-256 và `README-Windows.txt`. Thư mục `dist/` và `.build/` được bỏ qua bởi Git. Mỗi bản dùng Node runtime của máy build, vì vậy nên build bằng Node 22 LTS đã cập nhật.
+
+Workflow **Build Windows EXE** chạy thủ công trong tab Actions hoặc khi push tag `v*`. Workflow chạy test, build, kiểm tra EXE khi PATH không có Node và xuất artifact **Devkit-Windows-x64** để tải xuống. Không tự xuất bản GitHub Release.
 
 ## Deploy GitHub Pages
 

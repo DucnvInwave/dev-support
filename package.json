@@ -1,13 +1,16 @@
 {
   "name": "devkit-workspace",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "A local developer and QC toolbox for Android and Firebase",
   "scripts": {
     "start": "node server/index.mjs",
     "dev": "node --watch server/index.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "package:windows": "node scripts/build-windows.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

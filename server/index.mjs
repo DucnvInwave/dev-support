@@ -13,6 +13,7 @@ const local = process.env.DEVKIT_DATA_DIR || path.join(root, '.local');
 await mkdir(path.join(local, 'uploads'), { recursive: true });
 const token = randomBytes(32).toString('hex');
 const port = Number(process.env.PORT || 3210);
+const desktopInstance = /^[a-f0-9]{32}$/.test(process.env.DEVKIT_DESKTOP_INSTANCE || '') ? process.env.DEVKIT_DESKTOP_INSTANCE : '';
 const readJSON = async (file, fallback) => { try { return JSON.parse(await readFile(path.join(local, file), 'utf8')); } catch { return fallback; } };
 let settings = await readJSON('settings.json', { sdkRoot: '', adbPath: '', firebasePath: '', appId: APP_ID });
 const jobs = (await readJSON('history.json', [])).map(job => ['running', 'queued'].includes(job.status) ? { ...job, status: 'error', output: `${job.output || ''}\nServer đã dừng trước khi xác nhận kết quả.` } : job);
@@ -38,6 +39,7 @@ function startJob(type, title, command, task) {
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  if (desktopInstance) res.setHeader('X-Devkit-Instance', desktopInstance);
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('X-Frame-Options', 'DENY');
   const allowedHosts = [`127.0.0.1:${port}`, `localhost:${port}`];
@@ -47,6 +49,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) {
       if (req.headers.origin && !allowedHosts.some(host => req.headers.origin === `http://${host}`)) return json(res, 403, { error: 'Origin không được phép.' });
       if (!['GET', 'HEAD'].includes(req.method) && req.headers['x-devkit-token'] !== token) return json(res, 403, { error: 'Phiên làm việc không hợp lệ. Tải lại trang.' });
+      if (req.method === 'GET' && url.pathname === '/api/health') return json(res, 200, { app: 'devkit', runtime: process.version, desktop: !!desktopInstance });
       if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, { token, settings });
       if (req.method === 'GET' && url.pathname === '/api/status') {
         const tools = await resolveTools(settings); let devices = [], adbError = '';
