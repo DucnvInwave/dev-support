@@ -45,6 +45,7 @@
       "public/**"
     ],
     "npmRebuild": false,
+    "afterPack": "scripts/after-pack.cjs",
     "win": {
       "target": [
         {
