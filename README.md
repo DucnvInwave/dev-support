@@ -95,7 +95,7 @@ Cấu hình, tối đa 100 tác vụ gần nhất và file tạm nằm trong `.l
 
 Bản Electron mở Devkit trong cửa sổ riêng, có sẵn runtime; người dùng không cần cài Node.js để mở app. Backend tự chạy khi mở app và dừng khi chọn **Devkit → Dừng và thoát**. Nút X ẩn cửa sổ xuống khay hệ thống nếu khay khả dụng; nhấp đúp biểu tượng khay hoặc chọn **Mở Devkit** để mở lại. Nếu đang có tác vụ, app hỏi trước khi thoát. App chọn cổng local trống, không dừng ứng dụng đang chiếm cổng 3210. Thoát bản launcher cũ trước khi dùng Electron với cùng thư mục dữ liệu.
 
-- **Windows 10/11 x64:** chạy `dist/electron/Devkit-1.1.2-Windows-x64-Setup.exe`, chọn vị trí cài đặt rồi mở Devkit từ shortcut. Bản chưa có chữ ký số.
+- **Windows 10/11 x64:** chạy `dist/electron/Devkit-1.1.3-Windows-x64-Setup.exe`, chọn vị trí cài đặt rồi mở Devkit từ shortcut. Bản chưa có chữ ký số.
 - **macOS 13+:** dùng DMG/ZIP đúng kiến trúc `arm64` (Apple Silicon) hoặc `x64` (Intel), kéo Devkit.app vào Applications. Gói chưa có Apple Developer ID/notarization; nếu bị chặn, dùng Privacy & Security → Open Anyway cho gói từ nguồn bạn tin tưởng.
 - JSON Formatter và CSV Viewer dùng ngay. ADB/Android SDK, Firebase CLI cùng đăng nhập Firebase và SDK Tools/Java cũ cho Android Monitor vẫn cần cài trên từng máy. Runtime Electron chạy được Firebase CLI dạng JS đã cài; gói này chưa bundle Firebase CLI hoặc ADB.
 - **Cài đặt** có nút chọn SDK/ADB/Firebase qua hộp thoại và nút mở thư mục dữ liệu. Chọn đường dẫn rồi nhấn **Lưu cài đặt**.
@@ -112,7 +112,7 @@ npm test
 npm run electron:smoke
 ```
 
-Bản 1.1.2 ghi kết quả kiểm tra Java vào tác vụ, hỗ trợ `JAVA_HOME` và chạy Firebase với `--debug` để hiển thị cả lỗi Java trên stderr. Không tự gửi lại tác vụ khi thất bại. Log chi tiết Firebase nằm trong thư mục làm việc bên dưới.
+Bản 1.1.3 tự ký ad-hoc gói macOS để mở được trên Mac Apple Silicon. Bản 1.1.2 ghi kết quả kiểm tra Java vào tác vụ, hỗ trợ `JAVA_HOME` và chạy Firebase với `--debug` để hiển thị cả lỗi Java trên stderr. Không tự gửi lại tác vụ khi thất bại. Log chi tiết Firebase nằm trong thư mục làm việc bên dưới.
 
 Firebase CLI và Java Buildtools chạy trong thư mục `firebase-workspace` bên dưới thư mục dữ liệu Devkit. Cache `.crashlytics` được ghi tại đó, không ghi vào thư mục cài đặt (ví dụ `C:\Program Files\Devkit`). Bản 1.1.1 sửa lỗi không tạo được `dump_syms.exe` khi cài vào thư mục được bảo vệ; không cần chạy app bằng quyền Administrator.
 
