@@ -1,4 +1,5 @@
-import { parseJSONDocument, formatJSONDocument, editJSONDocument, MAX_JSON_BYTES, tokenizeJSON, findJSONBracketPair, highlightJSONRange } from './json-tools.js';
+import { parseJSONDocument, formatJSONDocument, editJSONDocument, MAX_JSON_BYTES } from './json-tools.js';
+import { createCodeEditor as createJSONCodeEditor } from './code-editor.js';
 
 export function initJSONFormatter({ toast, copy }) {
   const $ = selector => document.querySelector(selector);
@@ -288,45 +289,3 @@ export function initJSONFormatter({ toast, copy }) {
   $('#json-collapse').onclick = () => tree.querySelectorAll('details').forEach(node => { node.open = false; });
 }
 
-// Keep a native textarea for editing/IME/undo and paint only visible lines behind it.
-function createJSONCodeEditor(textarea) {
-  const shell = document.createElement('div'); shell.className = 'json-code';
-  const gutter = document.createElement('div'); gutter.className = 'json-line-numbers'; gutter.setAttribute('aria-hidden', 'true');
-  const numbers = document.createElement('div'); gutter.append(numbers);
-  const viewport = document.createElement('div'); viewport.className = 'json-code-viewport';
-  const paint = document.createElement('pre'); paint.className = 'json-code-paint'; paint.setAttribute('aria-hidden', 'true');
-  const content = document.createElement('code'); content.className = 'json-code-content'; paint.append(content);
-  textarea.before(shell); shell.append(gutter, viewport); viewport.append(paint, textarea);
-  textarea.setAttribute('wrap', 'off');
-  let source = null, tokens = [], lines = [0], pending = 0, indentSize = 2;
-  function render() {
-    pending = 0;
-    if (!textarea.clientHeight || !textarea.clientWidth) return;
-    const style = getComputedStyle(textarea), lineHeight = parseFloat(style.lineHeight);
-    const first = Math.max(0, Math.floor(textarea.scrollTop / lineHeight) - 2);
-    const last = Math.min(lines.length, first + Math.ceil(textarea.clientHeight / lineHeight) + 5);
-    const start = lines[first] ?? source.length, end = lines[last] ?? source.length;
-    const active = document.activeElement === textarea && textarea.selectionStart === textarea.selectionEnd ? findJSONBracketPair(tokens, textarea.selectionStart) : [];
-    content.innerHTML = highlightJSONRange(source, tokens, start, end, active, indentSize);
-    content.style.transform = 'translate(' + -textarea.scrollLeft + 'px,' + (first * lineHeight - textarea.scrollTop) + 'px)';
-    paint.style.width = textarea.clientWidth + 'px'; paint.style.height = textarea.clientHeight + 'px';
-    numbers.textContent = Array.from({ length: last - first }, (_, index) => first + index + 1).join('\n');
-    numbers.style.transform = 'translateY(' + (first * lineHeight - textarea.scrollTop) + 'px)';
-  }
-  function schedule() { if (!pending) pending = requestAnimationFrame(render); }
-  function refresh() {
-    if (source !== textarea.value) {
-      source = textarea.value;
-      ({ tokens, lines } = tokenizeJSON(source));
-      const widths = [...source.slice(0, 10000).matchAll(/\n( +)\S/g)].map(match => match[1].length);
-      indentSize = widths.some(width => width % 4 !== 0) ? 2 : widths.length ? 4 : 2;
-    }
-    schedule();
-  }
-  textarea.addEventListener('input', refresh);
-  for (const event of ['scroll', 'click', 'keyup', 'select', 'focus', 'blur', 'compositionend']) textarea.addEventListener(event, schedule);
-  const observer = new ResizeObserver(schedule); observer.observe(textarea);
-  document.addEventListener('selectionchange', () => { if (document.activeElement === textarea) schedule(); });
-  refresh(); shell.classList.add('json-code-ready');
-  return { refresh };
-}

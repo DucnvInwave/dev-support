@@ -41,6 +41,8 @@
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 2 9 4v6c0 6-9 10-9 10S3 18 3 12V6Zm-5 10 3 3 7-7"/></symbol>
   <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 12h3m4 0h9M4 18h11m4 0h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l4 4v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm3 0v5h7V3M7 21v-7h10v7"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8Z"/></symbol>
 </defs></svg>
 <aside class="sidebar" id="sidebar">
@@ -54,6 +56,7 @@
     <button class="nav-item" data-view="monitor"><svg><use href="#i-monitor"/></svg><span>Android Monitor</span></button>
     <button class="nav-item" data-view="json"><svg><use href="#i-code"/></svg><span>JSON Formatter</span></button>
     <button class="nav-item" data-view="csv"><svg><use href="#i-table"/></svg><span>CSV Viewer</span></button>
+    <button class="nav-item" data-view="config"><svg><use href="#i-sliders"/></svg><span>Config Editor</span></button>
     <div class="nav-divider"></div>
     <button class="nav-item" data-view="history"><svg><use href="#i-clock"/></svg><span>Lịch sử hoạt động</span><span id="history-count" class="nav-count">0</span></button>
     <button class="nav-item" data-view="devices"><svg><use href="#i-phone"/></svg><span>Thiết bị kết nối</span></button>
@@ -74,7 +77,7 @@
     <section class="page-heading"><div><div class="eyebrow"><span class="small-spark">✳</span> Chào bạn, cùng bắt đầu nhé</div><h1 id="page-title">Hôm nay, bạn cần làm gì<span class="title-dot">?</span></h1><p id="page-description">Chọn công cụ phù hợp. Hướng dẫn đã có sẵn để bạn dễ dàng làm theo.</p></div><div class="heading-status"><span class="dot" id="connection-dot"></span><span id="connection-text">Đang kết nối</span><span class="status-divider">·</span><span id="runtime-location">Trên máy của bạn</span></div></section>
     <aside id="web-mode-notice" class="web-mode-notice" aria-label="Thông tin bản web" hidden>
       <span class="tool-icon icon-lime" aria-hidden="true"><svg><use href="#i-code"/></svg></span>
-      <div class="web-mode-content"><strong>JSON & CSV dùng ngay trên web</strong><p>Firebase DebugView, Crashlytics Symbols và Android Monitor cần bản local chạy trên máy tính của bạn.</p>
+      <div class="web-mode-content"><strong>JSON & CSV dùng ngay trên web</strong><p>Firebase DebugView, Crashlytics Symbols, Android Monitor và Config Editor cần bản local chạy trên máy tính của bạn.</p>
         <div class="web-mode-actions"><button class="button button-secondary" data-view="json">JSON Formatter<svg><use href="#i-arrow"/></svg></button><button class="button button-secondary" data-view="csv">CSV Viewer<svg><use href="#i-arrow"/></svg></button></div>
         <details class="web-mode-help"><summary>Cách dùng công cụ Firebase & Android</summary><p>Tải mã nguồn từ repository GitHub, cài Node.js 20 trở lên, mở terminal tại thư mục dự án và chạy <code>npm start</code>. Sau đó mở <a href="http://localhost:3210" target="_blank" rel="noopener noreferrer">http://localhost:3210<svg aria-hidden="true"><use href="#i-external"/></svg></a>. Xem Hướng dẫn sử dụng để chuẩn bị ADB, Firebase CLI và Android Monitor.</p><p>Cài đặt và lịch sử được lưu riêng trên máy chạy bản local. Bản web không tự kết nối với ứng dụng local.</p></details>
       </div>
@@ -88,8 +91,8 @@
       <div class="hero-art" aria-hidden="true"><div class="art-circle"></div><span class="art-flower">✳</span><div class="friendly-note"><span class="note-sun">✦</span><span>Mọi thứ trong tầm tay</span><div class="note-task"><span class="note-icon sage"><svg><use href="#i-phone"/></svg></span>Kết nối thiết bị<span class="note-step">01</span></div><div class="note-task"><span class="note-icon peach"><svg><use href="#i-grid"/></svg></span>Chọn công cụ<span class="note-step">02</span></div><div class="note-task"><span class="note-icon lilac"><svg><use href="#i-play"/></svg></span>Bắt đầu công việc<span class="note-step">03</span></div></div><div class="art-paperclip"></div><span class="art-caption">Từng bước nhỏ. Mọi việc gọn hơn.</span></div>
     </section>
     <section class="tools-section" id="tools-section">
-      <div class="section-heading"><div class="section-heading-title"><h2>Bạn muốn làm gì?</h2><span class="count-badge">5 công cụ</span></div><div class="tools-heading-right"><svg><use href="#i-help"/></svg><span>Chọn một công cụ để bắt đầu</span></div></div>
-      <div class="tools-tabs" id="tools-tabs" role="tablist" aria-label="Lọc công cụ"><button class="tool-tab active" data-filter="all" role="tab" aria-selected="true">Tất cả <span>5</span></button><button class="tool-tab" data-filter="firebase" role="tab" aria-selected="false">Ứng dụng & báo lỗi</button><button class="tool-tab" data-filter="android" role="tab" aria-selected="false">Thiết bị Android</button><button class="tool-tab" data-filter="data" role="tab" aria-selected="false">JSON & CSV</button></div>
+      <div class="section-heading"><div class="section-heading-title"><h2>Bạn muốn làm gì?</h2><span class="count-badge">6 công cụ</span></div><div class="tools-heading-right"><svg><use href="#i-help"/></svg><span>Chọn một công cụ để bắt đầu</span></div></div>
+      <div class="tools-tabs" id="tools-tabs" role="tablist" aria-label="Lọc công cụ"><button class="tool-tab active" data-filter="all" role="tab" aria-selected="true">Tất cả <span>6</span></button><button class="tool-tab" data-filter="firebase" role="tab" aria-selected="false">Ứng dụng & báo lỗi</button><button class="tool-tab" data-filter="android" role="tab" aria-selected="false">Thiết bị Android</button><button class="tool-tab" data-filter="data" role="tab" aria-selected="false">JSON & CSV</button><button class="tool-tab" data-filter="ai" role="tab" aria-selected="false">Claude & Codex</button></div>
       <div class="tools-grid" id="tools-grid">
         <article class="tool-card debug-card" data-tool="debug" data-category="firebase android">
           <div class="card-top"><span class="tool-icon icon-lime"><svg><use href="#i-bug"/></svg></span><span class="category-tag">Firebase DebugView</span><span class="tool-number">01</span></div>
@@ -124,6 +127,7 @@
           <div class="monitor-note">Không cần kết nối điện thoại</div>
         </article>
         <article class="tool-card csv-launch-card" data-tool="csv" data-category="data"><div class="card-top"><span class="tool-icon icon-peach"><svg><use href="#i-table"/></svg></span><span class="category-tag">CSV Viewer</span><span class="tool-number">05</span></div><h3>CSV Viewer</h3><p class="card-description">Mở file CSV thành bảng rõ ràng. Tìm nội dung, sắp xếp cột và xem đầy đủ từng ô.</p><div class="csv-preview" aria-hidden="true"><span>Bài hát</span><span>Độ khó</span><span>Điểm</span><strong>Dancing Road</strong><span>Dễ</span><span>100</span><strong>Tăng tốc</strong><span>Vừa</span><span>250</span></div><p class="field-help">Nhận diện dấu phân cách, hỗ trợ tiếng Việt, ô nhiều dòng và dữ liệu xuất từ Excel.</p><div class="card-actions"><button class="button button-dark full-width" data-view="csv"><svg><use href="#i-table"/></svg>Mở công cụ CSV<svg class="button-end-icon"><use href="#i-arrow"/></svg></button></div><div class="monitor-note">Xử lý trực tiếp trong trình duyệt</div></article>
+        <article class="tool-card config-launch-card" data-tool="config" data-category="ai"><div class="card-top"><span class="tool-icon icon-lime"><svg><use href="#i-sliders"/></svg></span><span class="category-tag">Claude & Codex</span><span class="tool-number">06</span></div><h3>Config Editor</h3><p class="card-description">Sửa nhanh file cấu hình của Claude Code và Codex ngay trên máy này, có kiểm tra định dạng trước khi lưu.</p><ul class="config-card-files" aria-label="Các file hỗ trợ"><li><b>Claude</b><code>~/.claude.json</code><code>~/.claude/settings.json</code></li><li><b>Codex</b><code>~/.codex/config.toml</code><code>~/.codex/auth.json</code></li></ul><p class="field-help">Đường dẫn tự nhận theo tài khoản người dùng trên từng máy Windows hoặc macOS.</p><div class="card-actions"><button class="button button-dark full-width" data-view="config"><svg><use href="#i-sliders"/></svg>Mở Config Editor<svg class="button-end-icon"><use href="#i-arrow"/></svg></button></div><div class="monitor-note">Tự sao lưu trước mỗi lần lưu</div></article>
       </div>
     </section>
 
@@ -162,6 +166,39 @@
         <footer class="csv-pagination"><span id="csv-range" role="status">Chưa có dòng dữ liệu</span><div><button id="csv-prev" class="button button-secondary" disabled>Trang trước</button><span id="csv-page-label">Trang 0 / 0</span><button id="csv-next" class="button button-secondary" disabled>Trang sau</button></div></footer>
       </section>
       <p class="json-privacy"><svg><use href="#i-shield"/></svg>CSV được đọc ngay trong trình duyệt, không gửi lên server và không lưu vào lịch sử. Dữ liệu được giữ nguyên dưới dạng văn bản; tải lại trang sẽ xóa nội dung.</p>
+    </section>
+    <section id="config-view" class="config-workspace" hidden aria-label="Chỉnh sửa file cấu hình Claude và Codex">
+      <div class="json-toolbar"><div class="json-toolbar-intro"><span class="tool-icon icon-lime"><svg><use href="#i-sliders"/></svg></span><div><strong>Config Editor</strong><p id="config-home">Đang tìm thư mục người dùng…</p></div></div><div class="json-toolbar-actions"><button class="button button-secondary" id="config-refresh"><svg><use href="#i-refresh"/></svg>Tải lại danh sách</button></div></div>
+      <div class="config-layout">
+        <nav class="config-files" id="config-files" aria-label="Chọn file cấu hình"><p class="json-empty">Đang tải danh sách file…</p></nav>
+        <section class="config-editor-panel" aria-labelledby="config-file-name">
+          <header class="config-editor-heading">
+            <div class="config-file-title"><h2 id="config-file-name">Chọn một file</h2><span id="config-format" class="config-format" hidden></span><span id="config-dirty" class="config-dirty" hidden>Chưa lưu</span><button type="button" class="json-expand-button config-expand" id="config-expand" aria-pressed="false" title="Phóng to khung soạn thảo (Ctrl+Shift+E)" disabled><svg aria-hidden="true"><use href="#i-expand"/></svg><span>Phóng to</span></button></div>
+            <div class="config-path"><code id="config-path">—</code><button class="text-button" id="config-copy-path" disabled><svg><use href="#i-copy"/></svg>Sao chép đường dẫn</button></div>
+            <p id="config-description" class="config-description"></p>
+          </header>
+          <p id="config-sensitive" class="config-sensitive" hidden><svg><use href="#i-shield"/></svg>File này chứa thông tin đăng nhập. Không chụp màn hình, chia sẻ hoặc dán nội dung ở nơi khác.</p>
+          <div id="config-status" class="json-status" role="status" aria-live="polite">Chọn file cần chỉnh sửa.</div>
+          <div class="config-search" id="config-search" role="search">
+            <label class="config-search-field"><svg aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only">Tìm trong file</span><input id="config-search-input" type="search" placeholder="Tìm trong file… (Ctrl F)" autocomplete="off" spellcheck="false" disabled></label>
+            <span id="config-search-count" class="config-search-count" aria-live="polite"></span>
+            <button class="icon-button config-search-nav" id="config-search-prev" aria-label="Kết quả trước (Shift+Enter)" title="Kết quả trước (Shift+Enter)" disabled><svg class="flip"><use href="#i-down"/></svg></button>
+            <button class="icon-button config-search-nav" id="config-search-next" aria-label="Kết quả tiếp theo (Enter)" title="Kết quả tiếp theo (Enter)" disabled><svg><use href="#i-down"/></svg></button>
+            <label class="json-check config-search-option" title="Phân biệt chữ hoa và chữ thường"><input id="config-search-case" type="checkbox">Aa</label>
+            <button class="text-button" id="config-replace-toggle" aria-expanded="false" aria-controls="config-replace" disabled>Thay thế</button>
+            <div class="config-replace" id="config-replace" hidden><input id="config-replace-input" type="text" placeholder="Thay bằng…" autocomplete="off" spellcheck="false" aria-label="Nội dung thay thế"><button class="button button-secondary" id="config-replace-one">Thay</button><button class="button button-secondary" id="config-replace-all">Thay tất cả</button></div>
+          </div>
+          <div class="config-editor-wrap" id="config-editor-wrap"><label class="sr-only" for="config-editor">Nội dung file cấu hình</label><textarea id="config-editor" class="json-editor config-editor" spellcheck="false" autocomplete="off" autocapitalize="off" disabled placeholder="Chọn file bên trái để bắt đầu chỉnh sửa." aria-describedby="config-status"></textarea></div>
+          <footer class="config-actions">
+            <button class="text-button" id="config-goto-error" hidden><svg><use href="#i-arrow"/></svg>Đến vị trí lỗi</button>
+            <button class="text-button" id="config-backup" disabled><svg><use href="#i-clock"/></svg>Nạp bản sao lưu gần nhất</button>
+            <button class="button button-secondary" id="config-format-button" disabled><svg><use href="#i-spark"/></svg>Định dạng JSON</button>
+            <button class="button button-secondary" id="config-revert" disabled>Hoàn tác thay đổi</button>
+            <button class="button button-lime" id="config-save" disabled><svg><use href="#i-save"/></svg>Lưu file<kbd>Ctrl S</kbd></button>
+          </footer>
+        </section>
+      </div>
+      <p class="json-privacy"><svg><use href="#i-shield"/></svg>File được đọc và ghi trực tiếp trên máy này. Mỗi lần lưu, bản cũ được sao lưu trong thư mục dữ liệu Devkit (giữ 10 bản gần nhất). Khởi động lại Claude Code / Codex để áp dụng thay đổi.</p>
     </section>
     <section class="secondary-view" id="devices-view" hidden><div class="panel-heading"><div><h2>Thiết bị của bạn</h2><p>Kết nối điện thoại Android bằng cáp USB để bắt đầu.</p></div><button class="button button-secondary" id="device-page-refresh"><svg><use href="#i-refresh"/></svg>Tìm lại thiết bị</button></div><div id="device-list" class="device-list"></div><div class="info-callout"><svg><use href="#i-help"/></svg><div><strong>Chưa thấy điện thoại của bạn?</strong><p>Mở phần Tùy chọn nhà phát triển (Developer options) trên điện thoại, bật Gỡ lỗi USB (USB debugging), rồi cắm cáp USB có hỗ trợ truyền dữ liệu. Nếu điện thoại hỏi “Allow USB debugging”, hãy chọn cho phép.</p></div></div></section>
     <section class="secondary-view" id="settings-view" hidden><div class="panel-heading"><div><h2>Cài đặt trên máy của bạn</h2><p>Các công cụ được tự động tìm trên máy. Bạn chỉ cần thay đổi nếu muốn chọn vị trí khác.</p></div></div><form id="settings-form"><div class="settings-grid"><div class="setting-field"><label for="sdk-root">Thư mục công cụ Android <span>(SDK)</span></label><input id="sdk-root" placeholder="Chọn đường dẫn thư mục Android SDK" spellcheck="false"><p>Để trống để tự động tìm. Đây là thư mục chứa platform-tools và tools.</p></div><div class="setting-field"><label for="adb-path">Vị trí công cụ kết nối thiết bị <span>(ADB)</span></label><input id="adb-path" placeholder="Ví dụ: C:\Android\Sdk\platform-tools\adb.exe" spellcheck="false"><p>Không bắt buộc. Chỉ điền khi bạn muốn dùng một bản ADB cụ thể.</p></div><div class="setting-field"><label for="firebase-path">Vị trí công cụ Firebase <span>(tùy chọn)</span></label><input id="firebase-path" placeholder="Đường dẫn đến firebase.cmd hoặc firebase.js" spellcheck="false"><p>Để trống để tự động tìm. Phần Hướng dẫn có cách cài đặt và đăng nhập.</p></div><div class="setting-field"><label for="default-app-id">Mã ứng dụng Firebase mặc định</label><input id="default-app-id" spellcheck="false"><p>Lấy mã tại phần Cài đặt dự án (Project settings) trong Firebase.</p></div></div><div class="settings-footer"><span><svg><use href="#i-shield"/></svg>Cài đặt chỉ được lưu trên máy này</span><button type="submit" class="button button-lime"><svg><use href="#i-check"/></svg>Lưu cài đặt</button></div></form></section>

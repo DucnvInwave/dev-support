@@ -1,4 +1,5 @@
 import { initJSONFormatter } from './json-ui.js';
+import { initConfigEditor } from './config-ui.js';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const icon = name => `<svg aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -23,6 +24,7 @@ const views = {
   monitor: ['Android Monitor', 'Android Monitor', 'Mở Android Monitor đã cài trên máy để theo dõi điện thoại đang kết nối.', 'monitor'],
   json: ['JSON Formatter', 'JSON Formatter', 'Ba góc nhìn cho cùng một nội dung: JSON gốc, bản định dạng và thông tin dễ đọc.', 'code'],
   csv: ['CSV Viewer', 'CSV Viewer', 'Mở file CSV, tìm nội dung và sắp xếp dữ liệu trong một bảng rõ ràng.', 'table'],
+  config: ['Config Editor', 'Config Editor', 'Sửa file cấu hình của Claude Code và Codex trên máy này. Định dạng được kiểm tra trước khi lưu.', 'sliders'],
   history: ['Lịch sử hoạt động', 'Những việc bạn đã thực hiện', 'Xem lại các thao tác và chọn một hoạt động để đọc kết quả chi tiết.', 'clock'],
   devices: ['Thiết bị kết nối', 'Điện thoại đã sẵn sàng chưa', 'Kết nối điện thoại Android bằng cáp USB. Các thiết bị được tìm thấy sẽ xuất hiện bên dưới.', 'phone'],
   settings: ['Cài đặt', 'Mọi thứ theo ý bạn', 'Các công cụ được tự động tìm trên máy. Bạn chỉ cần thay đổi cài đặt khi cần.', 'settings']
@@ -44,7 +46,7 @@ async function api(route, options = {}) {
     throw new Error(localDisconnectedMessage);
   }
   if (!response.headers.get('content-type')?.includes('application/json')) { setConnection(false); throw new Error(localDisconnectedMessage); }
-  const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Không thực hiện được thao tác.'); return result;
+  const result = await response.json(); if (!response.ok) throw Object.assign(new Error(result.error || 'Không thực hiện được thao tác.'), { status: response.status, data: result }); return result;
 }
 async function ensureLocalSession() {
   // Refresh the session before a command; the desktop backend may have restarted
@@ -71,10 +73,12 @@ function setupWebMode() {
   $('#runtime-location').textContent = 'Trong trình duyệt';
   $('#hero-start').innerHTML = `Mở JSON Formatter${icon('arrow')}`;
   $('#hero .hero-content>p').textContent = 'Đọc JSON và CSV ngay trong trình duyệt. Các công cụ Firebase và Android có trong bản local.';
-  for (const name of ['debug', 'symbols', 'monitor']) {
+  for (const name of ['debug', 'symbols', 'monitor', 'config']) {
     const card = $(`[data-tool="${name}"]`);
     card.querySelector('.category-tag').textContent = 'Cần bản local';
   }
+  $('#config-files').innerHTML = '<p class="json-empty">Config Editor cần bản local để đọc và ghi file trên máy của bạn.</p>';
+  $('#config-home').textContent = localOnlyMessage;
   const localControls = '#debug-enable, #debug-disable, #upload-symbols, #open-monitor, #clear-history, #refresh-devices, #device-page-refresh, #device-select, #dropzone, #symbols-file, #monitor-elevated, #settings-form input, #settings-form button';
   $$(localControls).forEach(control => { control.disabled = true; control.title = localOnlyMessage; });
   $('#device-select').replaceChildren(new Option('Thiết bị có trong bản local', ''));
@@ -99,7 +103,9 @@ function openCSVViewer() {
   });
 }
 function navigate(view, scroll = true) {
-  if (!views[view]) view = 'overview'; state.view = view;
+  if (!views[view]) view = 'overview';
+  if (state.view === 'config' && view !== 'config' && !configEditor.confirmLeave()) { if (location.hash !== '#config') history.replaceState(null, '', '#config'); return; }
+  state.view = view;
   const [label, title, description] = views[view];
   $('#breadcrumb').textContent = label;
   const punctuation = ['overview', 'devices'].includes(view) ? '?' : ['history', 'settings'].includes(view) ? '.' : '';
@@ -115,11 +121,13 @@ function navigate(view, scroll = true) {
   $('#tools-grid').classList.toggle('single-tool', view !== 'overview');
   $('#json-view').hidden = view !== 'json';
   $('#csv-view').hidden = view !== 'csv';
+  $('#config-view').hidden = view !== 'config';
+  if (view === 'config') configEditor.show();
   if (view === 'csv') openCSVViewer();
-  $('#console-panel').hidden = ['json', 'csv'].includes(view) || !state.selectedJob;
+  $('#console-panel').hidden = ['json', 'csv', 'config'].includes(view) || !state.selectedJob;
   $('#devices-view').hidden = view !== 'devices';
   $('#settings-view').hidden = view !== 'settings';
-  $('#activity-layout').hidden = ['settings', 'devices', 'json', 'csv'].includes(view) || (webMode && view !== 'history');
+  $('#activity-layout').hidden = ['settings', 'devices', 'json', 'csv', 'config'].includes(view) || (webMode && view !== 'history');
   $('#activity-layout').classList.toggle('history-mode', view === 'history');
   $('#environment-panel').hidden = webMode || view === 'history';
   $('#all-history').hidden = view === 'history';
@@ -396,6 +404,7 @@ $('#theme-toggle').onclick = () => { const dark = !document.body.classList.conta
 document.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); if ($('#search-dialog').open) $('#search-dialog').close(); else openSearch(); } if (event.key === 'Escape') { $('#sidebar').classList.remove('open'); syncSidebar(); } });
 window.addEventListener('hashchange', () => navigate(location.hash.slice(1), false));
 initJSONFormatter({ toast, copy });
+const configEditor = initConfigEditor({ api, toast, copy, ensureLocalSession, webMode });
 navigate(location.hash.slice(1) || 'overview', false);
 async function connect(notify = true) { try { const session = await ensureLocalSession(); state.settings = session.settings; if (!state.settingsLoaded) { fillSettings(); state.settingsLoaded = true; } await Promise.allSettled([refreshStatus(), refreshJobs()]); } catch { setConnection(false); if (notify) toast(localDisconnectedMessage, true); } }
 async function poll() { if (document.visibilityState !== 'hidden') { if (!state.online) await connect(false); else await refreshJobs(); } setTimeout(poll, state.jobs.some(job => job.status === 'running') ? 1000 : 3500); }

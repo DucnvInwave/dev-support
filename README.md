@@ -78,6 +78,24 @@ Mở **Xem bảng CSV** từ menu hoặc trang Tổng quan. Chọn/kéo thả fi
 
 Sau khi cập nhật tính năng CSV, khởi động lại Node một lần để nạp các đường dẫn module mới, rồi tải lại trình duyệt.
 
+## Config Editor (Claude & Codex)
+
+Mở **Config Editor** từ menu để sửa trực tiếp các file cấu hình trên máy đang chạy Devkit (chỉ bản local):
+
+| Nhóm | File | Định dạng |
+| --- | --- | --- |
+| Claude | `~/.claude.json`, `~/.claude/settings.json` | JSON |
+| Codex | `~/.codex/config.toml`, `~/.codex/auth.json` | TOML / JSON |
+
+- `~` là thư mục người dùng của máy hiện tại (`C:\Users\<tên>` trên Windows, `/Users/<tên>` trên macOS), nên cùng một bản Devkit dùng được trên mọi máy. Nếu đặt biến môi trường `CLAUDE_CONFIG_DIR` hoặc `CODEX_HOME`, Devkit dùng các thư mục đó giống Claude Code/Codex.
+- Trình soạn thảo tô màu cú pháp JSON/TOML (khóa, chuỗi, số, ngày giờ, comment, tên bảng `[section]`), tô cặp ngoặc theo cấp và làm nổi cặp ngoặc tại con trỏ.
+- **Phóng to:** nút **Phóng to** (hoặc `Ctrl/Cmd+Shift+E`) mở khung soạn thảo gần toàn màn hình, vẫn giữ tìm kiếm, kiểm tra định dạng và nút Lưu; `Esc` hoặc **Thu nhỏ** để quay lại.
+- **Tìm kiếm:** `Ctrl/Cmd+F` mở ô tìm, `Enter`/`Shift+Enter` (hoặc `F3`) chuyển kết quả, `Aa` để phân biệt hoa/thường, `Esc` quay lại ô soạn thảo. `Ctrl/Cmd+H` mở **Thay thế** (`Enter` thay một, `Ctrl+Enter` thay tất cả; `Ctrl+Z` để hoàn tác).
+- Định dạng được kiểm tra ngay khi gõ (JSON và TOML 1.0) và báo dòng/cột lỗi. Nút **Lưu** bị khóa khi nội dung sai định dạng; server kiểm tra lại lần nữa trước khi ghi.
+- Nếu file bị Claude/Codex ghi lại sau khi bạn mở, Devkit báo xung đột thay vì ghi đè âm thầm.
+- Mỗi lần lưu, bản cũ được sao lưu vào `config-backups/` trong thư mục dữ liệu Devkit (giữ 10 bản gần nhất); nút **Nạp bản sao lưu gần nhất** đưa bản đó vào trình soạn thảo.
+- File chưa tồn tại sẽ được tạo khi lưu. Khởi động lại Claude Code/Codex để áp dụng thay đổi.
+
 ## Dữ liệu và thực thi
 
 Server chỉ lắng nghe `127.0.0.1`; giao diện phải mở bằng `localhost` hoặc `127.0.0.1` với đúng port. Các API ghi dữ liệu có token phiên và kiểm tra origin/host. Backend chỉ cung cấp các thao tác cố định; input được kiểm tra và CLI nhận tham số riêng qua `spawn`, không có API thực thi shell tùy ý. Firebase CLI trên Windows được chạy qua Node entry point để giữ nguyên đường dẫn có dấu cách.
@@ -95,7 +113,7 @@ Cấu hình, tối đa 100 tác vụ gần nhất và file tạm nằm trong `.l
 
 Bản Electron mở Devkit trong cửa sổ riêng, có sẵn runtime; người dùng không cần cài Node.js để mở app. Backend tự chạy khi mở app và dừng khi chọn **Devkit → Dừng và thoát**. Nút X ẩn cửa sổ xuống khay hệ thống nếu khay khả dụng; nhấp đúp biểu tượng khay hoặc chọn **Mở Devkit** để mở lại. Nếu đang có tác vụ, app hỏi trước khi thoát. App chọn cổng local trống, không dừng ứng dụng đang chiếm cổng 3210. Thoát bản launcher cũ trước khi dùng Electron với cùng thư mục dữ liệu.
 
-- **Windows 10/11 x64:** chạy `dist/electron/Devkit-1.1.3-Windows-x64-Setup.exe`, chọn vị trí cài đặt rồi mở Devkit từ shortcut. Bản chưa có chữ ký số.
+- **Windows 10/11 x64:** chạy `dist/electron/Devkit-1.1.4-Windows-x64-Setup.exe`, chọn vị trí cài đặt rồi mở Devkit từ shortcut. Bản chưa có chữ ký số.
 - **macOS 13+:** dùng DMG/ZIP đúng kiến trúc `arm64` (Apple Silicon) hoặc `x64` (Intel), kéo Devkit.app vào Applications. Gói chưa có Apple Developer ID/notarization; nếu bị chặn, dùng Privacy & Security → Open Anyway cho gói từ nguồn bạn tin tưởng.
 - JSON Formatter và CSV Viewer dùng ngay. ADB/Android SDK, Firebase CLI cùng đăng nhập Firebase và SDK Tools/Java cũ cho Android Monitor vẫn cần cài trên từng máy. Runtime Electron chạy được Firebase CLI dạng JS đã cài; gói này chưa bundle Firebase CLI hoặc ADB.
 - **Cài đặt** có nút chọn SDK/ADB/Firebase qua hộp thoại và nút mở thư mục dữ liệu. Chọn đường dẫn rồi nhấn **Lưu cài đặt**.
@@ -112,7 +130,7 @@ npm test
 npm run electron:smoke
 ```
 
-Bản 1.1.3 tự ký ad-hoc gói macOS để mở được trên Mac Apple Silicon. Bản 1.1.2 ghi kết quả kiểm tra Java vào tác vụ, hỗ trợ `JAVA_HOME` và chạy Firebase với `--debug` để hiển thị cả lỗi Java trên stderr. Không tự gửi lại tác vụ khi thất bại. Log chi tiết Firebase nằm trong thư mục làm việc bên dưới.
+Bản 1.1.4 thêm Config Editor để sửa file cấu hình Claude Code (`~/.claude.json`, `~/.claude/settings.json`) và Codex (`~/.codex/config.toml`, `~/.codex/auth.json`), có kiểm tra định dạng JSON/TOML và sao lưu trước khi lưu. Bản 1.1.3 tự ký ad-hoc gói macOS để mở được trên Mac Apple Silicon. Bản 1.1.2 ghi kết quả kiểm tra Java vào tác vụ, hỗ trợ `JAVA_HOME` và chạy Firebase với `--debug` để hiển thị cả lỗi Java trên stderr. Không tự gửi lại tác vụ khi thất bại. Log chi tiết Firebase nằm trong thư mục làm việc bên dưới.
 
 Firebase CLI và Java Buildtools chạy trong thư mục `firebase-workspace` bên dưới thư mục dữ liệu Devkit. Cache `.crashlytics` được ghi tại đó, không ghi vào thư mục cài đặt (ví dụ `C:\Program Files\Devkit`). Bản 1.1.1 sửa lỗi không tạo được `dump_syms.exe` khi cài vào thư mục được bảo vệ; không cần chạy app bằng quyền Administrator.
 

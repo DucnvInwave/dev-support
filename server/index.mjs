@@ -1,11 +1,13 @@
 import http from 'node:http';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
+import { listConfigFiles, readConfigFile, saveConfigFile, latestBackup, ConfigConflictError, MAX_CONFIG_BYTES } from './config-files.mjs';
 import { APP_ID, resolveTools, execute, inspectJava, parseDevices, debugArgs, firebaseInvocation, launchMacMonitor, stopCommands, validateZip, validSerial, validAppId } from './tools.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -27,10 +29,13 @@ const saveHistory = () => writeFile(path.join(local, 'history.json'), JSON.strin
 let saveQueue = Promise.resolve();
 const persist = () => { saveQueue = saveQueue.catch(() => {}).then(saveHistory); saveQueue.catch(console.error); };
 const json = (res, code, data) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
-async function body(req) {
-  let content = ''; for await (const chunk of req) { content += chunk; if (content.length > 16000) throw new Error('Dữ liệu quá lớn.'); }
-  try { return JSON.parse(content); } catch { throw new Error('JSON không hợp lệ.'); }
+async function body(req, limit = 16000) {
+  // Collect raw bytes and decode once so multi-byte UTF-8 characters split across chunks stay intact.
+  const chunks = []; let size = 0;
+  for await (const chunk of req) { size += chunk.length; if (size > limit) throw new Error('Dữ liệu quá lớn.'); chunks.push(chunk); }
+  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('JSON không hợp lệ.'); }
 }
+const configBackups = path.join(local, 'config-backups');
 function startJob(type, title, command, task) {
   if (jobs.some(job => job.status === 'running')) throw new Error('Một lệnh đang chạy. Vui lòng chờ hoàn tất.');
   const job = { id: randomUUID(), type, title, command, status: 'running', createdAt: new Date().toISOString(), output: '' };
@@ -79,6 +84,16 @@ const server = http.createServer(async (req, res) => {
         settings = { sdkRoot: input.sdkRoot.trim(), adbPath: input.adbPath.trim(), firebasePath: input.firebasePath.trim(), appId: input.appId };
         await writeFile(path.join(local, 'settings.json'), JSON.stringify(settings, null, 2));
         return json(res, 200, settings);
+      }
+      if (req.method === 'GET' && url.pathname === '/api/config-files') return json(res, 200, { home: os.homedir(), platform: process.platform, files: await listConfigFiles() });
+      if (req.method === 'GET' && url.pathname === '/api/config-file') return json(res, 200, await readConfigFile(url.searchParams.get('id')));
+      if (req.method === 'GET' && url.pathname === '/api/config-backup') return json(res, 200, await latestBackup(url.searchParams.get('id'), { backupDir: configBackups }));
+      if (req.method === 'POST' && url.pathname === '/api/config-file') {
+        // JSON string escaping can roughly double the size of the file content.
+        const input = await body(req, MAX_CONFIG_BYTES * 2 + 4096);
+        if (typeof input.content !== 'string' || typeof input.force !== 'boolean' || !(input.expectedMtimeMs === null || typeof input.expectedMtimeMs === 'number')) throw new Error('Dữ liệu lưu file không hợp lệ.');
+        try { return json(res, 200, await saveConfigFile(input, { backupDir: configBackups })); }
+        catch (error) { if (error instanceof ConfigConflictError) return json(res, 409, { error: error.message, conflict: true }); throw error; }
       }
       if (req.method === 'POST' && url.pathname === '/api/debug') {
         const input = await body(req); if (typeof input.enabled !== 'boolean') throw new Error('Trạng thái debug không hợp lệ.');
@@ -133,7 +148,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { error: 'API không tồn tại.' });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method không được hỗ trợ.' });
-    const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/index.html': ['index.html', 'text/html; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/json-tools.js': ['json-tools.js', 'text/javascript; charset=utf-8'], '/json-ui.js': ['json-ui.js', 'text/javascript; charset=utf-8'], '/csv-tools.js': ['csv-tools.js', 'text/javascript; charset=utf-8'], '/csv-ui.js': ['csv-ui.js', 'text/javascript; charset=utf-8'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
+    const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/index.html': ['index.html', 'text/html; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/json-tools.js': ['json-tools.js', 'text/javascript; charset=utf-8'], '/json-ui.js': ['json-ui.js', 'text/javascript; charset=utf-8'], '/csv-tools.js': ['csv-tools.js', 'text/javascript; charset=utf-8'], '/csv-ui.js': ['csv-ui.js', 'text/javascript; charset=utf-8'], '/toml-tools.js': ['toml-tools.js', 'text/javascript; charset=utf-8'], '/config-ui.js': ['config-ui.js', 'text/javascript; charset=utf-8'], '/code-editor.js': ['code-editor.js', 'text/javascript; charset=utf-8'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
     const asset = assets[url.pathname]; if (!asset) return json(res, 404, { error: 'Không tìm thấy trang.' });
     res.writeHead(200, { 'Content-Type': asset[1], 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" });
     res.end(req.method === 'HEAD' ? undefined : await readFile(path.join(root, 'public', asset[0])));
