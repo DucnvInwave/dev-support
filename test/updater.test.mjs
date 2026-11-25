@@ -79,3 +79,19 @@ test('downloads updates with progress and verifies SHA-256 before keeping the fi
   const sidecar = await downloadAsset({ ...target, sidecarUrl: base + 'x.sha256' }, dir, { fetch: async url => url.endsWith('.sha256') ? response(`${sha256}  ${target.name}\n`) : fetch() });
   assert.equal(sidecar.verified, true);
 });
+
+test('cleans up installed, unfinished and superseded update downloads only', async t => {
+  const { cleanupDownloads } = createRequire(import.meta.url)('../desktop/updater.cjs');
+  const { writeFile } = await import('node:fs/promises');
+  const dir = await mkdtemp(path.join(tmpdir(), 'devkit-cleanup-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const files = ['Devkit-1.1.7-Windows-x64-Setup.exe', 'Devkit-1.1.9-Windows-x64-Setup.exe', 'Devkit-1.2.0-Windows-x64-Setup.exe', 'Devkit-1.2.1-Windows-x64-Setup.exe.part', 'Devkit-1.3.0-macOS-arm64.dmg', 'notes.txt'];
+  for (const name of files) await writeFile(path.join(dir, name), 'x');
+
+  assert.deepEqual(cleanupDownloads(dir, { current: '1.1.9' }).sort(), ['Devkit-1.1.7-Windows-x64-Setup.exe', 'Devkit-1.1.9-Windows-x64-Setup.exe', 'Devkit-1.2.1-Windows-x64-Setup.exe.part']);
+  assert.deepEqual((await readdir(dir)).sort(), ['Devkit-1.2.0-Windows-x64-Setup.exe', 'Devkit-1.3.0-macOS-arm64.dmg', 'notes.txt'], 'newer downloads and unrelated files are kept');
+
+  assert.deepEqual(cleanupDownloads(dir, { current: '1.1.9', keep: 'Devkit-1.3.0-macOS-arm64.dmg' }), ['Devkit-1.2.0-Windows-x64-Setup.exe']);
+  assert.deepEqual((await readdir(dir)).sort(), ['Devkit-1.3.0-macOS-arm64.dmg', 'notes.txt']);
+  assert.deepEqual(cleanupDownloads(path.join(dir, 'missing'), { current: '1.0.0' }), []);
+});

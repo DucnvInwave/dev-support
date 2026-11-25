@@ -48,9 +48,10 @@ export function initUpdates({ desktop, info, toast, store }) {
       store.set('updateCheckedAt', update.checkedAt);
       const skipped = !manual && store.get('updateSkip') === update.latest;
       state.info = skipped ? { ...update, available: false } : update;
-      setStatus(update.available
+      setStatus((update.available
         ? `Phiên bản hiện tại: ${update.current}. Đã có bản ${update.latest}.`
-        : `Phiên bản hiện tại: ${update.current} — đây là bản mới nhất. Kiểm tra lúc ${new Date(update.checkedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}.`);
+        : `Phiên bản hiện tại: ${update.current} — đây là bản mới nhất. Kiểm tra lúc ${new Date(update.checkedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}.`)
+        + (update.needsElevation ? ' Devkit đang được cài cho mọi người dùng nên mỗi lần cập nhật Windows sẽ hỏi quyền Administrator; cài lại và chọn "Only for me" để cập nhật không cần hỏi.' : ''));
       render();
       if (manual) {
         if (update.available) { $('#update-notice').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); toast(`Đã có Devkit ${update.latest}.`); }
@@ -75,7 +76,10 @@ export function initUpdates({ desktop, info, toast, store }) {
         $('#update-progress-label').textContent = result.verified ? 'Đã tải xong và kiểm tra mã SHA-256.' : 'Đã tải xong.';
       }
       if (update.installKind === 'installer') {
-        if (!confirm(`Cài Devkit ${update.latest} ngay?\n\nDevkit sẽ đóng, cập nhật trong nền (khoảng 10–30 giây) rồi tự mở lại. Không cần thao tác gì thêm.`)) return;
+        const elevationNote = update.needsElevation
+          ? `\n\nLưu ý: Devkit đang được cài cho mọi người dùng (${update.installDir}), nên Windows sẽ hỏi quyền Administrator — hãy chọn Yes. Để lần sau cập nhật không còn hỏi, gỡ Devkit rồi cài lại và chọn "Only for me" (chỉ cho tôi).`
+          : '';
+        if (!confirm(`Cài Devkit ${update.latest} ngay?\n\nDevkit sẽ đóng, cập nhật trong nền (khoảng 10–30 giây) rồi tự mở lại. Không cần thao tác gì thêm.${elevationNote}`)) return;
         const result = await desktop.installUpdate();
         if (result?.action === 'cancelled') return;
         $('#update-progress').hidden = false;

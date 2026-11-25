@@ -14,6 +14,11 @@ if (smoke && (process.env.DEVKIT_SMOKE_TEST !== '1' || !process.env.DEVKIT_DESKT
 let window, tray, backend, origin = '', quitting = false, allowQuit = false, backendStopped = false;
 let lastPage = '', smokeReport = {};
 let updateInfo = null, updateDownload = null, downloadedUpdate = null;
+const updateDirectory = () => path.join(app.getPath('temp'), 'Devkit-update');
+function cleanupUpdates(options) {
+  const removed = updater.cleanupDownloads(updateDirectory(), options);
+  if (removed.length) log('Removed old update files: ' + removed.join(', '));
+}
 const nonce = randomBytes(16).toString('hex');
 fs.mkdirSync(paths.home, { recursive: true }); fs.mkdirSync(paths.data, { recursive: true });
 const logfile = path.join(paths.home, 'electron.log');
@@ -56,6 +61,17 @@ function setupMenu() {
     { label: 'Hiển thị', submenu: [{ role: 'reload' }, { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'togglefullscreen' }, ...(!app.isPackaged ? [{ role: 'toggleDevTools' }] : [])] }
   ]));
 }
+// Per-machine installs (e.g. C:\Program Files) need a UAC prompt on every update; per-user
+// installs (%LOCALAPPDATA%\Programs) do not. fs.access ignores Windows ACLs, so probe with a real write.
+let elevationCache;
+function installNeedsElevation() {
+  if (process.platform !== 'win32' || !app.isPackaged) return false;
+  if (elevationCache !== undefined) return elevationCache;
+  const probe = path.join(path.dirname(process.execPath), `.devkit-write-test-${process.pid}`);
+  try { fs.writeFileSync(probe, ''); fs.rmSync(probe, { force: true }); elevationCache = false; }
+  catch { elevationCache = true; }
+  return elevationCache;
+}
 function trusted(event) { if (!window || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || !isAppURL(event.senderFrame.url, origin)) throw new Error('Yêu cầu không được phép.'); }
 function setupIPC() {
   ipcMain.handle('devkit:info', event => { trusted(event); return { version: app.getVersion(), platform: process.platform, dataDirectory: paths.data }; });
@@ -71,14 +87,15 @@ function setupIPC() {
     if (smoke) return { disabled: true };
     updateInfo = await updater.fetchLatestRelease({ fetch: net.fetch, current: app.getVersion(), platform: process.platform, arch: process.arch });
     if (downloadedUpdate && downloadedUpdate.name !== updateInfo.asset?.name) downloadedUpdate = null;
-    return { ...updateInfo, downloaded: !!downloadedUpdate, checkedAt: new Date().toISOString() };
+    return { ...updateInfo, downloaded: !!downloadedUpdate, checkedAt: new Date().toISOString(), needsElevation: installNeedsElevation(), installDir: app.isPackaged ? path.dirname(process.execPath) : '' };
   });
   ipcMain.handle('devkit:update-download', async event => {
     trusted(event);
     if (!updateInfo?.available || !updateInfo.asset) throw new Error('Chưa có bản cập nhật để tải. Hãy kiểm tra cập nhật trước.');
     if (downloadedUpdate?.name === updateInfo.asset.name) return { verified: downloadedUpdate.verified };
     const sender = event.sender, asset = updateInfo.asset;
-    updateDownload ??= updater.downloadAsset(asset, path.join(app.getPath('temp'), 'Devkit-update'), {
+    if (!updateDownload) cleanupUpdates({ current: app.getVersion(), keep: asset.name });
+    updateDownload ??= updater.downloadAsset(asset, updateDirectory(), {
       fetch: net.fetch,
       onProgress: progress => { if (!sender.isDestroyed()) sender.send('devkit:update-progress', progress); }
     }).then(result => { downloadedUpdate = { ...result, name: asset.name }; log(`Update downloaded: ${asset.name} (sha256 ${result.verified ? 'verified' : 'not published'})`); return { verified: result.verified }; })
@@ -180,7 +197,7 @@ if (!app.requestSingleInstanceLock()) app.exit(0);
 else {
   app.on('second-instance', showWindow);
   app.whenReady().then(async () => {
-    setupIPC(); if (!smoke) setupMenu();
+    setupIPC(); if (!smoke) { setupMenu(); cleanupUpdates({ current: app.getVersion() }); }
     await startBackend(); await createWindow();
     if (smoke) await require('./smoke.cjs').check({ app, window, origin, paths, report: smokeReport });
   }).then(() => { if (smoke) app.quit(); }).catch(async error => {

@@ -102,4 +102,24 @@ async function downloadAsset(asset, directory, { fetch, onProgress = () => {} })
   }
 }
 
-module.exports = { REPOSITORY, LATEST_URL, parseVersion, compareVersions, pickAsset, summarizeRelease, fetchLatestRelease, downloadAsset };
+// Removes installers that are no longer useful so the download folder does not grow by
+// ~100 MB per release: unfinished .part files, versions already installed (<= current),
+// and any version other than `keep` (the one about to be downloaded).
+function cleanupDownloads(directory, { current, keep } = {}) {
+  let names;
+  try { names = fs.readdirSync(directory); } catch { return []; }
+  const removed = [];
+  for (const name of names) {
+    const base = name.endsWith('.part') ? name.slice(0, -5) : name;
+    if (!ASSET_NAME.test(base)) continue; // never touch files the updater did not create
+    const version = /^Devkit-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)-/.exec(base)[1];
+    const stale = name.endsWith('.part')
+      || (current && compareVersions(version, current) <= 0)
+      || (keep && base !== keep);
+    if (!stale) continue;
+    try { fs.rmSync(path.join(directory, name), { force: true }); removed.push(name); } catch { /* in use; retry next time */ }
+  }
+  return removed;
+}
+
+module.exports = { REPOSITORY, LATEST_URL, parseVersion, compareVersions, pickAsset, summarizeRelease, fetchLatestRelease, downloadAsset, cleanupDownloads };
