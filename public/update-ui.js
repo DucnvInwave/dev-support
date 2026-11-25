@@ -22,13 +22,19 @@ export function initUpdates({ desktop, info, toast, store }) {
     $('#update-notice').hidden = !show;
     $('#app-version').classList.toggle('has-update', show);
     $('#app-version').title = show ? `Đã có bản ${update.latest}` : '';
+    $('#settings-update-dot').hidden = $('#settings-update-badge').hidden = !show;
+    $('#settings-update-badge').title = show ? `Đã có Devkit ${update.latest}` : '';
+    $('#nav-settings').setAttribute('aria-label', show ? `Cài đặt — đã có bản cập nhật ${update.latest}` : 'Cài đặt');
+    $('#update-settings-install').hidden = !show;
+    $('#update-settings').classList.toggle('has-update', show);
     if (!show) return;
     $('#update-title').textContent = `Đã có Devkit ${update.latest}`;
     $('#update-summary').textContent = `Bạn đang dùng bản ${update.current}.${update.publishedAt ? ` Bản mới phát hành ngày ${formatDate(update.publishedAt)}.` : ''}${update.installKind === 'page' ? ' Chưa có file cài đặt cho máy này trong bản phát hành; hãy mở trang GitHub để tải.' : ''}`;
     $('#update-notes-details').hidden = !update.notes.trim();
     $('#update-notes').textContent = update.notes.trim();
     $('#update-install span').textContent = installLabel(update);
-    $('#update-install').disabled = state.busy;
+    $('#update-install').disabled = $('#update-settings-install').disabled = state.busy;
+    $('#update-settings-install span').textContent = installLabel(update);
     $('#update-skip').hidden = state.busy;
   }
 
@@ -92,6 +98,7 @@ export function initUpdates({ desktop, info, toast, store }) {
   });
   desktop.onUpdateMenu(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); check({ manual: true }); });
   $('#update-install').onclick = install;
+  $('#update-settings-install').onclick = install;
   $('#update-open-page').onclick = () => state.info && desktop.openRelease(state.info.pageUrl).catch(error => toast(error.message, true));
   $('#update-skip').onclick = () => {
     if (!state.info) return;

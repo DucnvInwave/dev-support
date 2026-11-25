@@ -631,3 +631,14 @@ body.dark .update-notice { border-color: #4d6139; }
 .update-settings-info { display: flex; align-items: center; gap: 14px; flex: 1 1 320px; }
 .update-settings h3 { margin: 0; font-size: 16px; font-weight: 600; }
 .update-settings p { margin: 3px 0 0; font-size: 14px; color: var(--subtle); }
+.nav-icon { position: relative; display: inline-flex; flex-shrink: 0; }
+.nav-update-dot { position: absolute; top: -6px; right: -8px; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: #e0622f; color: #fff; border: 2px solid var(--surface); box-sizing: content-box; animation: nav-update-pulse 2s ease-out 3; }
+.nav-update-dot svg { width: 9px !important; height: 9px !important; stroke-width: 3.4; animation: nav-update-rise 1.6s ease-in-out infinite; }
+.nav-item.active .nav-update-dot { border-color: #e8f0dd; }
+body.dark .nav-item.active .nav-update-dot { border-color: #415333; }
+.nav-update-badge { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; padding: 1px 8px 1px 5px; border-radius: 6px; background: #e0622f; color: #fff; font-size: 11px; font-weight: 600; line-height: 1.7; }
+.nav-update-badge svg { width: 12px !important; height: 12px !important; stroke-width: 3; }
+.update-settings.has-update { background: var(--soft); }
+@keyframes nav-update-pulse { 0% { box-shadow: 0 0 0 0 #e0622f88; } 100% { box-shadow: 0 0 0 8px #e0622f00; } }
+@keyframes nav-update-rise { 0%, 100% { transform: translateY(1px); } 50% { transform: translateY(-1.5px); } }
+@media (prefers-reduced-motion: reduce) { .nav-update-dot, .nav-update-dot svg { animation: none; } }
