@@ -136,7 +136,26 @@ Firebase CLI và Java Buildtools chạy trong thư mục `firebase-workspace` b�
 
 Build Windows trên Windows: `npm run electron:dist:win`. Build Mac trên Mac: `npm run electron:dist:mac -- --arm64` hoặc `npm run electron:dist:mac -- --x64`. Kết quả nằm trong `dist/electron/`. Kiểm tra bản Windows đã đóng gói bằng `node scripts/check-electron.mjs --packaged dist/electron/win-unpacked/Devkit.exe`. Bộ kiểm tra dùng dữ liệu/profile riêng trong `.build`, CLI giả lập và không gửi symbol lên Firebase.
 
-Workflow [Build Electron desktop](.github/workflows/build-electron.yml) chạy thủ công qua **Actions → Build Electron desktop → Run workflow**, hoặc khi push tag `v*`. Workflow build và kiểm tra app trên Windows x64, Mac Intel và Mac Apple Silicon; tải bộ cài tại Artifacts của run thành công. Không tự tạo GitHub Release. Hai workflow launcher cũ vẫn được giữ để tương thích. Bản Mac cần job trên runner Mac thành công trước khi phân phối.
+Workflow [Build Electron desktop](.github/workflows/build-electron.yml) build và kiểm tra app trên Windows x64, Mac Intel và Mac Apple Silicon. Hai workflow launcher cũ vẫn được giữ để tương thích.
+
+### Phát hành bản mới (tự động qua GitHub Actions)
+
+1. Sửa `version` trong `package.json` (ví dụ `npm version 1.1.5 --no-git-tag-version`), commit.
+2. Tạo và push tag trùng version — dạng `1.1.5` hoặc `v1.1.5`:
+   ```sh
+   git tag 1.1.5
+   git push origin main 1.1.5
+   ```
+3. Workflow kiểm tra tag khớp `package.json`, build 3 bản, rồi tạo GitHub Release (bản nháp → tải file lên → công bố) kèm file `.sha256` và ghi chú thay đổi tự sinh. Nếu Release cho tag đó đã có sẵn (tạo tay), workflow chỉ tải/ghi đè file lên.
+
+Chạy **Actions → Build Electron desktop → Run workflow** (không có tag) chỉ build thử; bộ cài nằm ở Artifacts, không tạo Release.
+
+### Kiểm tra cập nhật trong app
+
+- App Electron hỏi GitHub Releases API (`/releases/latest` của repo public này) khi mở app (sau ~4 giây) và mỗi 6 giờ; tắt được trong **Cài đặt → Cập nhật ứng dụng**. Menu **Devkit → Kiểm tra cập nhật…** kiểm tra ngay.
+- Khi có bản mới hơn, trang hiện thông báo kèm ghi chú thay đổi. **Windows:** tải bộ cài trong app, kiểm tra SHA-256 (mã GitHub công bố cho file, hoặc file `.sha256` đi kèm), rồi đóng Devkit và mở bộ cài. **macOS:** tải và mở DMG (hoặc ZIP) để kéo vào Applications — app chưa có Apple Developer ID nên không tự thay thế được. Nếu Release chưa có file cho máy đó, nút sẽ mở trang GitHub.
+- **Bỏ qua bản này** tắt nhắc cho phiên bản đó; kiểm tra thủ công vẫn hiện.
+- Chỉ nhận Release đã công bố (không nhận bản nháp/pre-release). Tên file phải theo mẫu `Devkit-<version>-Windows-x64-Setup.exe` / `Devkit-<version>-macOS-<arm64|x64>.<dmg|zip>` như electron-builder tạo ra.
 
 ## Ứng dụng Windows EXE (launcher cũ)
 

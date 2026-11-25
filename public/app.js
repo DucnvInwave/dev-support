@@ -421,6 +421,7 @@ async function setupDesktop() {
   try {
     const info = await window.devkitDesktop.getInfo();
     $('#runtime-location').textContent = 'Devkit ' + info.version;
+    if (window.devkitDesktop.checkUpdate) import('./update-ui.js').then(({ initUpdates }) => initUpdates({ desktop: window.devkitDesktop, info, toast, store })).catch(error => toast(error.message, true));
     for (const [kind, selector] of [['sdk', '#sdk-root'], ['adb', '#adb-path'], ['firebase', '#firebase-path']]) {
       const input = $(selector), button = document.createElement('button');
       button.type = 'button'; button.className = 'text-button'; button.dataset.desktopPath = kind;

@@ -4,7 +4,9 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
+      # Both "1.2.0" and "v1.2.0" tags build and publish a GitHub Release.
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
 
 permissions:
   contents: read
@@ -31,6 +33,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME#v}" != "$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME không khớp version $VERSION trong package.json. Hãy sửa version rồi tạo lại tag."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -61,3 +72,35 @@ jobs:
             .build/electron-smoke-*/electron-smoke.json
             .build/electron-smoke-*/electron-smoke.png
             .build/electron-smoke-*/electron.log
+
+  release:
+    # Publishes the installers so the in-app updater can find them.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Devkit-Electron-*
+          path: release
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: release
+        run: |
+          for file in *; do sha256sum "$file" > "$file.sha256"; done
+          ls -la
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Upload into a draft first so the updater never sees a release without files.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "v${TAG#v}" --generate-notes --verify-tag
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          fi

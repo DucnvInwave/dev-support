@@ -1,8 +1,10 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, dialog, shell, ipcMain, utilityProcess } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, dialog, shell, ipcMain, utilityProcess, net } = require('electron');
+const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const { randomBytes } = require('node:crypto');
 const { desktopPaths, selectPort, isAppURL, isExternalURL } = require('./runtime.cjs');
+const updater = require('./updater.cjs');
 app.setName('Devkit');
 app.setAppUserModelId('local.devkit.desktop');
 const paths = desktopPaths({ userData: app.getPath('userData') });
@@ -11,6 +13,7 @@ const smoke = process.argv.includes('--smoke-test');
 if (smoke && (process.env.DEVKIT_SMOKE_TEST !== '1' || !process.env.DEVKIT_DESKTOP_HOME || !process.env.DEVKIT_ELECTRON_PROFILE)) throw new Error('Smoke test requires isolated data and profile directories.');
 let window, tray, backend, origin = '', quitting = false, allowQuit = false, backendStopped = false;
 let lastPage = '', smokeReport = {};
+let updateInfo = null, updateDownload = null, downloadedUpdate = null;
 const nonce = randomBytes(16).toString('hex');
 fs.mkdirSync(paths.home, { recursive: true }); fs.mkdirSync(paths.data, { recursive: true });
 const logfile = path.join(paths.home, 'electron.log');
@@ -41,7 +44,7 @@ function createWindow() {
   return loaded;
 }
 function setupMenu() {
-  const common = [{ label: 'Mở Devkit', click: showWindow }, { label: 'Mở thư mục dữ liệu', click: () => void shell.openPath(paths.data) }, { label: 'Mở log ứng dụng', click: () => void shell.openPath(logfile) }, { type: 'separator' }, { label: 'Dừng và thoát', accelerator: 'CommandOrControl+Q', click: () => app.quit() }];
+  const common = [{ label: 'Mở Devkit', click: showWindow }, { label: 'Kiểm tra cập nhật…', click: () => { showWindow(); window?.webContents.send('devkit:update-menu'); } }, { label: 'Mở thư mục dữ liệu', click: () => void shell.openPath(paths.data) }, { label: 'Mở log ứng dụng', click: () => void shell.openPath(logfile) }, { type: 'separator' }, { label: 'Dừng và thoát', accelerator: 'CommandOrControl+Q', click: () => app.quit() }];
   const menu = Menu.buildFromTemplate(common);
   try {
     tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: process.platform === 'darwin' ? 20 : 24, height: process.platform === 'darwin' ? 20 : 24 }));
@@ -62,6 +65,47 @@ function setupIPC() {
     if (!['sdk', 'adb', 'firebase'].includes(kind)) throw new Error('Loại công cụ không hợp lệ.');
     const result = await dialog.showOpenDialog(window, { title: { sdk: 'Chọn thư mục Android SDK', adb: 'Chọn ADB', firebase: 'Chọn Firebase CLI' }[kind], properties: [kind === 'sdk' ? 'openDirectory' : 'openFile'] });
     return result.canceled ? null : result.filePaths[0];
+  });
+  ipcMain.handle('devkit:update-check', async event => {
+    trusted(event);
+    if (smoke) return { disabled: true };
+    updateInfo = await updater.fetchLatestRelease({ fetch: net.fetch, current: app.getVersion(), platform: process.platform, arch: process.arch });
+    if (downloadedUpdate && downloadedUpdate.name !== updateInfo.asset?.name) downloadedUpdate = null;
+    return { ...updateInfo, downloaded: !!downloadedUpdate, checkedAt: new Date().toISOString() };
+  });
+  ipcMain.handle('devkit:update-download', async event => {
+    trusted(event);
+    if (!updateInfo?.available || !updateInfo.asset) throw new Error('Chưa có bản cập nhật để tải. Hãy kiểm tra cập nhật trước.');
+    if (downloadedUpdate?.name === updateInfo.asset.name) return { verified: downloadedUpdate.verified };
+    const sender = event.sender, asset = updateInfo.asset;
+    updateDownload ??= updater.downloadAsset(asset, path.join(app.getPath('temp'), 'Devkit-update'), {
+      fetch: net.fetch,
+      onProgress: progress => { if (!sender.isDestroyed()) sender.send('devkit:update-progress', progress); }
+    }).then(result => { downloadedUpdate = { ...result, name: asset.name }; log(`Update downloaded: ${asset.name} (sha256 ${result.verified ? 'verified' : 'not published'})`); return { verified: result.verified }; })
+      .finally(() => { updateDownload = null; });
+    return updateDownload;
+  });
+  ipcMain.handle('devkit:update-install', async event => {
+    trusted(event);
+    if (!downloadedUpdate || !fs.existsSync(downloadedUpdate.file)) throw new Error('Chưa tải xong bản cập nhật.');
+    const file = downloadedUpdate.file;
+    if (file.endsWith('.exe')) {
+      // The installer replaces files only after Devkit has quit.
+      const child = spawn(file, [], { detached: true, stdio: 'ignore', windowsHide: false });
+      child.on('error', error => log('Installer: ' + error.message));
+      child.unref();
+      setTimeout(() => app.quit(), 400);
+      return { action: 'installer' };
+    }
+    const error = await shell.openPath(file);
+    if (error) throw new Error(error);
+    if (file.endsWith('.zip')) shell.showItemInFolder(file);
+    return { action: file.endsWith('.dmg') ? 'dmg' : 'archive' };
+  });
+  ipcMain.handle('devkit:open-release', (event, url) => {
+    trusted(event);
+    if (!String(url).startsWith(`https://github.com/${updater.REPOSITORY}/`)) throw new Error('Liên kết không hợp lệ.');
+    return shell.openExternal(url);
   });
 }
 async function previousInstance() {

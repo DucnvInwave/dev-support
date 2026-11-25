@@ -620,3 +620,14 @@ body.config-expanded { overflow: hidden; }
 .config-editor-panel.expanded .json-status { padding-top: 10px; padding-bottom: 10px; }
 .config-editor-panel.expanded .config-actions { padding: 10px 18px; }
 @media (max-width: 600px) { .config-editor-panel.expanded { inset: 0; border-radius: 0; } .config-expand span { display: none; } }
+
+/* App updates */
+.update-notice { border-color: #b9d49a; background: var(--soft); }
+body.dark .update-notice { border-color: #4d6139; }
+.update-notes { max-height: 240px; overflow: auto; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--subtle); }
+.update-progress { margin: 12px 0 0; }
+#app-version.has-update { padding: 0 7px; border-radius: 6px; background: var(--primary); color: var(--primary-text); font-weight: 600; }
+.update-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding: 22px 28px; border-top: 1px solid var(--border); }
+.update-settings-info { display: flex; align-items: center; gap: 14px; flex: 1 1 320px; }
+.update-settings h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.update-settings p { margin: 3px 0 0; font-size: 14px; color: var(--subtle); }
