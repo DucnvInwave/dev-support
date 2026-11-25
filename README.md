@@ -107,7 +107,7 @@ Cấu hình, tối đa 100 tác vụ gần nhất và file tạm nằm trong `.l
 - Cài đặt môi trường nằm ở `.local/settings.json`; lịch sử hoạt động và log nằm ở `.local/history.json`. Các file ZIP tạm nằm trong `.local/uploads/` và được xóa sau khi CLI kết thúc. Có thể đổi thư mục dữ liệu bằng biến môi trường `DEVKIT_DATA_DIR`.
 - `.local/` đã có trong `.gitignore`, nên Git không thêm dữ liệu này khi commit thông thường. File đã được theo dõi từ trước vẫn cần được gỡ khỏi Git nếu có.
 - Lựa chọn ứng dụng/package, thiết bị và giao diện sáng/tối nằm trong localStorage của trình duyệt với tiền tố `devkit.`; dữ liệu tách theo trình duyệt, profile và địa chỉ web (bao gồm cổng).
-- Người clone và chạy dự án trên máy khác sẽ có dữ liệu local riêng. GitHub Pages chỉ phục vụ file tĩnh, không chạy Node.js, ADB, Firebase CLI hoặc Android Monitor. Các chức năng hiện tại cần backend Node local; đưa frontend lên Pages riêng chưa đủ để sử dụng chúng.
+- Người clone và chạy dự án trên máy khác sẽ có dữ liệu local riêng.
 
 ## Ứng dụng Electron — Windows và macOS
 
@@ -170,7 +170,7 @@ Cổng mặc định là 3210; nếu bận, ứng dụng chọn một cổng tr�
 - Cài đặt/lịch sử của bản EXE nằm trong `%LOCALAPPDATA%\Devkit\data`; log khởi động tại `%LOCALAPPDATA%\Devkit\launcher.log`. Có thể ghi đè thư mục bằng `DEVKIT_DATA_DIR` và `DEVKIT_DESKTOP_HOME`.
 - Gói chỉ chứa mã ứng dụng, tài nguyên giao diện, Node runtime và giấy phép Node; không chứa `.local/`, tài khoản Firebase, symbols hoặc dữ liệu cá nhân trên máy build. Dữ liệu nguồn cũ không tự được sao chép. Khi ứng dụng đã dừng, có thể chép `settings.json` và `history.json` sang thư mục data để dùng tiếp; đường dẫn công cụ cần phù hợp với máy đích.
 - ADB, Firebase CLI/tài khoản đăng nhập, SDK Tools cũ và Java vẫn cần được chuẩn bị riêng. Firebase có thể dùng bản standalone `firebase.exe` hoặc bản `firebase.js`/`firebase.cmd` có sẵn; bản JS dùng Node đi kèm. EXE chưa có chữ ký số.
-- EXE mở giao diện **local** để dùng đầy đủ tính năng. Kết nối điều khiển từ GitHub Pages tới máy tính chưa được bổ sung.
+- EXE mở giao diện **local** để dùng đầy đủ tính năng.
 
 Build lại trên Windows x64 với Node.js 22+ và .NET Framework 4.8:
 
@@ -208,18 +208,6 @@ node scripts/check-macos.mjs
 Kết quả trong `dist/Devkit-1.0.3-macos-arm64.zip` hoặc `dist/Devkit-1.0.3-macos-x64.zip`, kèm SHA-256. Bộ kiểm tra giải nén ZIP, chạy app hai lần với PATH không có Node, kiểm tra API/tài nguyên, backend được dừng và cài đặt/lịch sử được giữ nguyên. Workflow không tự tạo GitHub Release. Máy Windows không thể biên dịch hoặc xác nhận chạy launcher Cocoa; cần job macOS thành công trước khi phân phối gói.
 
 Để dùng ngay khi chưa có gói app, cài Node.js 22 trên Mac, mở Terminal tại mã nguồn rồi chạy `npm start`; mở `http://localhost:3210`. Các công cụ ADB/Firebase vẫn cần cài cho Mac.
-
-## Deploy GitHub Pages
-
-Workflow [Deploy GitHub Pages](.github/workflows/deploy-pages.yml) tự chạy khi push lên nhánh `main`; cũng có thể chạy thủ công từ tab **Actions → Deploy GitHub Pages → Run workflow**.
-
-1. Trên GitHub, vào **Settings → Pages → Build and deployment → Source**, chọn **GitHub Actions**.
-2. Commit và push mã nguồn, gồm thư mục `.github/workflows`, lên nhánh `main`.
-3. Mở tab **Actions** để xem kết quả. Sau khi deploy thành công, URL website xuất hiện trong job **Deploy** và trang **Settings → Pages**.
-
-Workflow chạy `npm test` bằng Node.js 22 trên runner, sau đó đăng riêng thư mục `public/`. Frontend dùng HTML/CSS/JavaScript thuần nên không cần `npm install` hoặc `npm run build`. Đường dẫn tài nguyên tương đối hỗ trợ cả Pages tại domain gốc và đường dẫn repository. Backend, lịch sử và cài đặt trong `.local/` không nằm trong artifact website.
-
-**Giới hạn:** GitHub Pages chạy được JSON Formatter và CSV Viewer ngay trong trình duyệt, không cần Node trên máy người xem. Các tính năng ADB, upload symbols và Android Monitor vẫn cần mở bản local tại `http://localhost:3210`. Bản Pages tự nhận diện chế độ web: không gọi/poll API local, không báo lỗi kết nối khi mở trang và vô hiệu hóa thao tác cần backend với hướng dẫn mở bản local. Lịch sử và cài đặt môi trường được xem/lưu trong bản local. Chạy `npm start` không tự kết nối trang Pages với backend local; hãy mở địa chỉ localhost. Chế độ local được dùng khi mở bằng HTTP tại `localhost` hoặc `127.0.0.1`.
 
 ## Kiểm tra
 
