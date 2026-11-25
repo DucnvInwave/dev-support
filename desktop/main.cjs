@@ -90,11 +90,15 @@ function setupIPC() {
     if (!downloadedUpdate || !fs.existsSync(downloadedUpdate.file)) throw new Error('Chưa tải xong bản cập nhật.');
     const file = downloadedUpdate.file;
     if (file.endsWith('.exe')) {
-      // The installer replaces files only after Devkit has quit.
-      const child = spawn(file, [], { detached: true, stdio: 'ignore', windowsHide: false });
+      // A silent install closes the running app, so confirm before cancelling running work.
+      if (!(await confirmStopRunningJobs())) return { action: 'cancelled' };
+      // electron-builder NSIS: /S = silent into the existing install folder, --updated keeps
+      // shortcuts/settings, --force-run starts the new Devkit when installation finishes.
+      const child = spawn(file, ['--updated', '/S', '--force-run'], { detached: true, stdio: 'ignore' });
       child.on('error', error => log('Installer: ' + error.message));
       child.unref();
-      setTimeout(() => app.quit(), 400);
+      log(`Installing update silently: ${path.basename(file)}`);
+      setTimeout(() => void requestQuit(true), 300);
       return { action: 'installer' };
     }
     const error = await shell.openPath(file);
@@ -153,16 +157,18 @@ async function stopBackend() {
     try { backend.postMessage({ type: 'stop' }); } catch { clearTimeout(timer); backend.kill(); resolve(); }
   });
 }
-async function requestQuit() {
+async function confirmStopRunningJobs(detail = 'Thoát Devkit sẽ hủy tác vụ đó.') {
+  let jobs = [];
+  if (origin && !backendStopped) jobs = await fetch(origin + '/api/jobs', { signal: AbortSignal.timeout(1500) }).then(response => response.json()).catch(() => []);
+  if (smoke || !jobs.some(job => job.status === 'running')) return true;
+  const { response } = await dialog.showMessageBox({ type: 'question', message: 'Một tác vụ đang chạy', detail, buttons: ['Tiếp tục sử dụng', 'Dừng và thoát'], defaultId: 0, cancelId: 0 });
+  return response !== 0;
+}
+async function requestQuit(confirmed = false) {
   if (quitting) return;
   quitting = true;
   try {
-    let jobs = [];
-    if (origin && !backendStopped) jobs = await fetch(origin + '/api/jobs', { signal: AbortSignal.timeout(1500) }).then(response => response.json()).catch(() => []);
-    if (!smoke && jobs.some(job => job.status === 'running')) {
-      const { response } = await dialog.showMessageBox({ type: 'question', message: 'Một tác vụ đang chạy', detail: 'Thoát Devkit sẽ hủy tác vụ đó.', buttons: ['Tiếp tục sử dụng', 'Dừng và thoát'], defaultId: 0, cancelId: 0 });
-      if (response === 0) { quitting = false; return; }
-    }
+    if (!confirmed && !(await confirmStopRunningJobs())) { quitting = false; return; }
     await stopBackend();
     tray?.destroy(); tray = null; allowQuit = true; app.quit();
   } catch (error) { log(error.stack); allowQuit = true; app.exit(1); }

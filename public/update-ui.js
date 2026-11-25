@@ -69,9 +69,12 @@ export function initUpdates({ desktop, info, toast, store }) {
         $('#update-progress-label').textContent = result.verified ? 'Đã tải xong và kiểm tra mã SHA-256.' : 'Đã tải xong.';
       }
       if (update.installKind === 'installer') {
-        if (!confirm(`Devkit sẽ đóng và mở bộ cài ${update.latest}. Làm theo bộ cài để hoàn tất, sau đó mở lại Devkit.\n\nCác tác vụ đang chạy (nếu có) sẽ được hỏi trước khi thoát.`)) return;
-        await desktop.installUpdate();
-        toast('Đang mở bộ cài. Devkit sẽ tự đóng.');
+        if (!confirm(`Cài Devkit ${update.latest} ngay?\n\nDevkit sẽ đóng, cập nhật trong nền (khoảng 10–30 giây) rồi tự mở lại. Không cần thao tác gì thêm.`)) return;
+        const result = await desktop.installUpdate();
+        if (result?.action === 'cancelled') return;
+        $('#update-progress').hidden = false;
+        $('#update-progress-label').textContent = 'Đang cài đặt… Devkit sẽ tự mở lại khi xong.';
+        toast('Đang cài bản cập nhật. Devkit sẽ tự mở lại sau ít giây.');
       } else {
         await desktop.installUpdate();
         toast(update.installKind === 'dmg'

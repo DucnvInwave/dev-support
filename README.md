@@ -153,7 +153,7 @@ Chạy **Actions → Build Electron desktop → Run workflow** (không có tag) 
 ### Kiểm tra cập nhật trong app
 
 - App Electron hỏi GitHub Releases API (`/releases/latest` của repo public này) khi mở app (sau ~4 giây) và mỗi 6 giờ; tắt được trong **Cài đặt → Cập nhật ứng dụng**. Menu **Devkit → Kiểm tra cập nhật…** kiểm tra ngay.
-- Khi có bản mới hơn, trang hiện thông báo kèm ghi chú thay đổi. **Windows:** tải bộ cài trong app, kiểm tra SHA-256 (mã GitHub công bố cho file, hoặc file `.sha256` đi kèm), rồi đóng Devkit và mở bộ cài. **macOS:** tải và mở DMG (hoặc ZIP) để kéo vào Applications — app chưa có Apple Developer ID nên không tự thay thế được. Nếu Release chưa có file cho máy đó, nút sẽ mở trang GitHub.
+- Khi có bản mới hơn, trang hiện thông báo kèm ghi chú thay đổi. **Windows:** tải bộ cài trong app, kiểm tra SHA-256 (mã GitHub công bố cho file, hoặc file `.sha256` đi kèm), rồi đóng Devkit, cài im lặng vào đúng thư mục cũ (`/S --updated --force-run`) và tự mở lại bản mới sau khoảng 10–30 giây — không có cửa sổ cài đặt. Nếu đang có tác vụ chạy, app hỏi trước khi đóng. Khi cài tay bằng file Setup, trang cuối có tùy chọn mở Devkit ngay. **macOS:** tải và mở DMG (hoặc ZIP) để kéo vào Applications — app chưa có Apple Developer ID nên không tự thay thế được. Nếu Release chưa có file cho máy đó, nút sẽ mở trang GitHub.
 - **Bỏ qua bản này** tắt nhắc cho phiên bản đó; kiểm tra thủ công vẫn hiện.
 - Chỉ nhận Release đã công bố (không nhận bản nháp/pre-release). Tên file phải theo mẫu `Devkit-<version>-Windows-x64-Setup.exe` / `Devkit-<version>-macOS-<arm64|x64>.<dmg|zip>` như electron-builder tạo ra.
 
