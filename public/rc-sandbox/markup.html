@@ -1,0 +1,106 @@
+<!-- Synced from https://dancing-road.web.app on 2026-11-27 by scripts/sync-rc-sandbox.mjs. Do not edit; change the QC web page and sync again. -->
+<section id="tab-sandbox" class="tabpage">
+<div class="layout">
+	<aside>
+		<span class="sandbox-badge">SAFE · drafts never touch Firebase Remote Config</span>
+		<div class="seg">
+			<button id="modeDrafts" class="active">Sandbox drafts</button>
+			<button id="modeFirebase">Firebase RC</button>
+		</div>
+		<div id="draftPane" class="pane">
+			<div class="tools">
+				<button id="newBtn" disabled>+ New draft</button>
+				<button id="cloneBtn" disabled>Clone from Firebase</button>
+			</div>
+			<input id="draftSearch" class="search" placeholder="Search drafts">
+			<div id="draftList" class="list"></div>
+		</div>
+		<div id="firebasePane" class="pane hidden">
+			<div class="fbbar">
+				<span id="fbVersion" class="dim">Not fetched</span>
+				<button id="fetchBtn" class="small" disabled>Fetch</button>
+			</div>
+			<input id="fbSearch" class="search" placeholder="Search name, country, version…">
+			<div class="chips" id="fbChips">
+				<button data-f="all" class="on">All</button><button data-f="ios">iOS</button><button data-f="android">Android</button><button data-f="ab">A/B</button><button data-f="rollout">Rollout</button>
+			</div>
+			<div id="fbList" class="list"></div>
+		</div>
+	</aside>
+
+	<main id="main">
+		<div class="empty" id="emptyState">
+			<h2>Test RC changes safely</h2>
+			<p>Create a draft or clone a condition from Firebase, edit it here,<br>
+			and apply it on a test device from <b>DevInfo → RC Conditions → Sandbox</b>.</p>
+		</div>
+		<div id="viewer" class="hidden"></div>
+		<div id="editor" class="hidden">
+			<div class="field"><input id="draftName" placeholder="Draft name" maxlength="100"></div>
+			<div class="source" id="draftSource"></div>
+			<div class="field"><label>Note</label><textarea id="draftNote" rows="2" maxlength="1000" placeholder="What are you testing?"></textarea></div>
+			<div class="hint" id="schemaHint"></div>
+			<div class="seg viewseg">
+				<button id="viewEdit" class="active">Edit values</button>
+				<button id="viewChanges">What it changes</button>
+			</div>
+			<div id="changes" class="hidden"></div>
+			<div id="editPane">
+			<div class="tabs" id="tabs"></div>
+			<div class="variant-tools">
+				<input id="variantName" placeholder="Variant name" maxlength="60">
+				<button id="addVariantBtn" class="small">+ Variant</button>
+				<button id="dupVariantBtn" class="small">Duplicate</button>
+				<button id="delVariantBtn" class="small danger">Remove variant</button>
+			</div>
+			<div id="keys"></div>
+			<div class="addkey">
+				<input id="newKey" list="knownKeys" placeholder="Add a key, e.g. Ad_Settings or Deluxe_Enable" maxlength="128">
+				<datalist id="knownKeys"></datalist>
+				<button id="addKeyBtn">Add key</button>
+			</div>
+			</div>
+		</div>
+	</main>
+</div>
+
+<div class="savebar hidden" id="saveBar">
+	<span id="dirty"></span>
+	<span class="grow"></span>
+			<button id="deleteBtn" class="danger">Delete draft</button>
+	<button id="sendBtn" class="primary">Send to device</button>
+	<button id="saveBtn" class="good">Save (Ctrl+S)</button>
+</div>
+
+<dialog id="cloneDialog">
+	<div class="dhead"><h3>Clone a condition from Firebase</h3><button id="cloneClose" class="small">Close</button></div>
+	<div class="dbody">
+		<input id="cloneSearch" placeholder="Search name or expression" style="width:100%;margin-bottom:10px">
+		<div class="dim" style="font-size:13px;margin-bottom:8px">Cloning copies the values into a new draft. Firebase is not changed. Picking an A/B variant clones every variant of that test.</div>
+		<div id="cloneList"></div>
+	</div>
+</dialog>
+
+<dialog id="sendDialog">
+	<div class="dhead"><h3 id="sendTitle">Send to a test device</h3><button id="sendClose" class="small">Close</button></div>
+	<div class="dbody">
+		<div class="seg" style="margin:0 0 14px">
+			<button id="sendTabDevice" class="active">Apply on device</button>
+			<button id="sendTabQr">QR code</button>
+		</div>
+		<div id="sendDevicePane">
+			<div class="row" style="justify-content:space-between;margin-bottom:8px">
+				<span class="dim" style="font-size:13px">Test phones that opened DevInfo → RC Conditions in the last 30 days</span>
+				<button id="refreshDevices" class="small">Refresh</button>
+			</div>
+			<div id="deviceList"></div>
+			<div id="sendResult" style="margin-top:12px;font-size:14px"></div>
+		</div>
+		<div id="sendQrPane" class="hidden" style="text-align:center">
+			<div id="qrBox" class="qr"></div>
+			<div id="qrInfo" class="dim" style="font-size:13px;margin-top:10px;word-break:break-all"></div>
+			<button id="newQr" class="small" style="margin-top:10px">New QR code</button>
+		</div>
+	</div>
+</dialog>
+</section>

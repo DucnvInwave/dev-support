@@ -33,7 +33,7 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   const health = await fetch(base + '/api/health');
   assert.deepEqual(await health.json(), { app: 'devkit', runtime: process.version, desktop: true });
   assert.equal(health.headers.get('x-devkit-instance'), '0123456789abcdef0123456789abcdef');
-  for (const file of ['/styles.css', '/app.js', '/json-tools.js', '/json-ui.js', '/csv-tools.js', '/csv-ui.js', '/favicon.svg']) assert.equal((await fetch(base + file)).status, 200);
+  for (const file of ['/styles.css', '/app.js', '/json-tools.js', '/json-ui.js', '/csv-tools.js', '/csv-ui.js', '/favicon.svg', '/rc-sandbox-ui.js', '/rc-sandbox-embed.css', '/rc-sandbox/markup.html', '/rc-sandbox/sandbox.js', '/rc-sandbox/sandbox.css', '/rc-sandbox/qrcode.js']) assert.equal((await fetch(base + file)).status, 200);
   assert.equal((await fetch(base + '/server/index.mjs')).status, 404);
   assert.equal((await fetch(base + '/.local/settings.json')).status, 404);
   const session = await fetch(base + '/api/session').then(r => r.json()); assert.match(session.token, /^[a-f0-9]{64}$/);
@@ -92,6 +92,12 @@ test('local HTTP server serves the app and protects command endpoints', async t 
   assert.equal(failed.status, 'error');
   assert.match(failed.output, /UnsupportedClassVersionError: fixture Java is too old/);
   assert.deepEqual(await readdir(path.join(temp, 'uploads')), [], 'temporary ZIP removed after Java failure');
+  // RC Sandbox proxy: odd paths are refused before anything leaves this machine, writes need the session token
+  assert.equal((await fetch(base + '/api/rc/me%2F..%2Fsession')).status, 400);
+  assert.equal((await fetch(base + '/api/rc/a/b/c/d/e')).status, 400);
+  assert.equal((await fetch(base + '/api/rc/drafts', { method: 'POST' })).status, 403);
+  const rcStatus = (await fetch(base + '/api/rc/me')).status;
+  assert.ok([401, 502].includes(rcStatus), 'forwarded without a password: rejected upstream, or offline');
   const hostStatus = await new Promise((resolve, reject) => { const request = http.get(base + '/api/session', { headers: { Host: `attacker.example:${port}` } }, res => { res.resume(); resolve(res.statusCode); }); request.on('error', reject); });
   assert.equal(hostStatus, 403);
 });

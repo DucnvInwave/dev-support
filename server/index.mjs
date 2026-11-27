@@ -36,6 +36,32 @@ async function body(req, limit = 16000) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('JSON không hợp lệ.'); }
 }
 const configBackups = path.join(local, 'config-backups');
+// RC Sandbox (Dancing Road QC): the browser talks to this server only; requests are forwarded to the QC backend.
+const RC_API = (process.env.DEVKIT_RC_API || 'https://dancing-road.web.app/api').replace(/\/+$/, '');
+const RC_FORWARD_HEADERS = ['x-admin-key', 'x-qc-name', 'content-type'];
+async function proxyRc(req, res, url) {
+  const route = url.pathname.slice('/api/rc'.length);
+  if (!/^\/[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+){0,3}$/.test(route)) return json(res, 400, { error: 'Đường dẫn RC Sandbox không hợp lệ.' });
+  if (!['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) return json(res, 405, { error: 'Method không được hỗ trợ.' });
+  const headers = {};
+  for (const name of RC_FORWARD_HEADERS) if (typeof req.headers[name] === 'string') headers[name] = req.headers[name];
+  let payload;
+  if (['POST', 'PUT'].includes(req.method)) {
+    const chunks = []; let size = 0;
+    for await (const chunk of req) { size += chunk.length; if (size > 400 * 1024) throw new Error('Bản nháp quá lớn.'); chunks.push(chunk); }
+    payload = Buffer.concat(chunks);
+  }
+  let upstream;
+  try {
+    upstream = await fetch(RC_API + route, { method: req.method, headers, body: payload, redirect: 'error', signal: AbortSignal.timeout(30000) });
+  } catch {
+    return json(res, 502, { error: 'Không kết nối được máy chủ RC Sandbox. Kiểm tra mạng rồi thử lại.' });
+  }
+  const text = await upstream.text();
+  if (!upstream.headers.get('content-type')?.includes('application/json')) return json(res, 502, { error: `Máy chủ RC Sandbox trả về lỗi ${upstream.status}.` });
+  res.writeHead(upstream.status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(text);
+}
 function startJob(type, title, command, task) {
   if (jobs.some(job => job.status === 'running')) throw new Error('Một lệnh đang chạy. Vui lòng chờ hoàn tất.');
   const job = { id: randomUUID(), type, title, command, status: 'running', createdAt: new Date().toISOString(), output: '' };
@@ -141,6 +167,7 @@ const server = http.createServer(async (req, res) => {
           return execute('powershell.exe', ['-NoProfile', '-NonInteractive', '-InputFormat', 'Text', '-OutputFormat', 'Text', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { onOutput: log, timeout: 120000 });
         }); return json(res, 202, job);
       }
+      if (url.pathname.startsWith('/api/rc/')) return await proxyRc(req, res, url);
       if (req.method === 'DELETE' && url.pathname === '/api/jobs') {
         if (jobs.some(j => j.status === 'running')) throw new Error('Không thể xóa lịch sử khi có lệnh đang chạy.');
         jobs.length = 0; persist(); return json(res, 200, { ok: true });
@@ -148,9 +175,9 @@ const server = http.createServer(async (req, res) => {
       return json(res, 404, { error: 'API không tồn tại.' });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Method không được hỗ trợ.' });
-    const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/index.html': ['index.html', 'text/html; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/json-tools.js': ['json-tools.js', 'text/javascript; charset=utf-8'], '/json-ui.js': ['json-ui.js', 'text/javascript; charset=utf-8'], '/csv-tools.js': ['csv-tools.js', 'text/javascript; charset=utf-8'], '/csv-ui.js': ['csv-ui.js', 'text/javascript; charset=utf-8'], '/toml-tools.js': ['toml-tools.js', 'text/javascript; charset=utf-8'], '/config-ui.js': ['config-ui.js', 'text/javascript; charset=utf-8'], '/code-editor.js': ['code-editor.js', 'text/javascript; charset=utf-8'], '/update-ui.js': ['update-ui.js', 'text/javascript; charset=utf-8'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
+    const assets = { '/': ['index.html', 'text/html; charset=utf-8'], '/index.html': ['index.html', 'text/html; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/json-tools.js': ['json-tools.js', 'text/javascript; charset=utf-8'], '/json-ui.js': ['json-ui.js', 'text/javascript; charset=utf-8'], '/csv-tools.js': ['csv-tools.js', 'text/javascript; charset=utf-8'], '/csv-ui.js': ['csv-ui.js', 'text/javascript; charset=utf-8'], '/toml-tools.js': ['toml-tools.js', 'text/javascript; charset=utf-8'], '/config-ui.js': ['config-ui.js', 'text/javascript; charset=utf-8'], '/code-editor.js': ['code-editor.js', 'text/javascript; charset=utf-8'], '/update-ui.js': ['update-ui.js', 'text/javascript; charset=utf-8'], '/rc-sandbox-ui.js': ['rc-sandbox-ui.js', 'text/javascript; charset=utf-8'], '/rc-sandbox-embed.css': ['rc-sandbox-embed.css', 'text/css; charset=utf-8'], '/rc-sandbox/markup.html': ['rc-sandbox/markup.html', 'text/html; charset=utf-8'], '/rc-sandbox/sandbox.js': ['rc-sandbox/sandbox.js', 'text/javascript; charset=utf-8'], '/rc-sandbox/sandbox.css': ['rc-sandbox/sandbox.css', 'text/css; charset=utf-8'], '/rc-sandbox/qrcode.js': ['rc-sandbox/qrcode.js', 'text/javascript; charset=utf-8'], '/favicon.svg': ['favicon.svg', 'image/svg+xml'] };
     const asset = assets[url.pathname]; if (!asset) return json(res, 404, { error: 'Không tìm thấy trang.' });
-    res.writeHead(200, { 'Content-Type': asset[1], 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" });
+    res.writeHead(200, { 'Content-Type': asset[1], 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; style-src 'self' https://fonts.googleapis.com; style-src-attr 'unsafe-inline'; font-src https://fonts.gstatic.com; img-src 'self' data:; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" });
     res.end(req.method === 'HEAD' ? undefined : await readFile(path.join(root, 'public', asset[0])));
   } catch (error) { if (!res.headersSent && !res.destroyed) json(res, 400, { error: error.message }); }
 });

@@ -96,6 +96,16 @@ Mở **Config Editor** từ menu để sửa trực tiếp các file cấu hình
 - Mỗi lần lưu, bản cũ được sao lưu vào `config-backups/` trong thư mục dữ liệu Devkit (giữ 10 bản gần nhất); nút **Nạp bản sao lưu gần nhất** đưa bản đó vào trình soạn thảo.
 - File chưa tồn tại sẽ được tạo khi lưu. Khởi động lại Claude Code/Codex để áp dụng thay đổi.
 
+## RC Sandbox (Dancing Road)
+
+Mở **RC Sandbox** từ menu để soạn thử condition và A/B test Remote Config của Dancing Road mà **không ghi vào Firebase Remote Config** (chỉ bản local):
+
+- Nhập tên và mật khẩu QC (chính là khóa admin trong popup RC Conditions của game). Có thể chọn nhớ trên máy này.
+- Tạo bản nháp hoặc nhân bản condition / A/B test từ Firebase, sửa giá trị, xem **What it changes** (từng field so với giá trị mặc định trên Firebase, field game bỏ qua, JSON hỏng).
+- **Send to device**: gửi bản nháp sang máy test theo mã máy (`QC-XXXX`, hiện trong popup RC Conditions) hoặc mã QR. Tester vẫn tự bấm Apply trong game.
+- Dùng chung dữ liệu với trang https://dancing-road.web.app. Trình duyệt chỉ gọi server Devkit; server chuyển tiếp `/api/rc/*` sang máy chủ QC. Không lưu mật khẩu trong mã nguồn.
+- Giao diện nằm trong `public/rc-sandbox/`, được chép từ trang QC bằng `npm run sync:rc` (đừng sửa tay các file đó). Biến môi trường `DEVKIT_RC_API` đổi máy chủ QC khi cần thử.
+
 ## Dữ liệu và thực thi
 
 Server chỉ lắng nghe `127.0.0.1`; giao diện phải mở bằng `localhost` hoặc `127.0.0.1` với đúng port. Các API ghi dữ liệu có token phiên và kiểm tra origin/host. Backend chỉ cung cấp các thao tác cố định; input được kiểm tra và CLI nhận tham số riêng qua `spawn`, không có API thực thi shell tùy ý. Firebase CLI trên Windows được chạy qua Node entry point để giữ nguyên đường dẫn có dấu cách.
