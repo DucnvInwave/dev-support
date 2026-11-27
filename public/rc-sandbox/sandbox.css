@@ -141,4 +141,8 @@
 .qc-root table.matrix td.diff { font-weight: 600; color: var(--yellow); }
 .qc-root table.matrix td.same { color: var(--dim); }
 .qc-root table.matrix tr.ignored td.f { color: var(--red); }
+.qc-root .fbpick { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 3px 8px; font-size: 13px; max-width: 260px; }
+.qc-root .card.invalid { border-color: var(--red); }
+.qc-root .card.invalid textarea { border-color: var(--red); }
+.qc-root pre.jsonerr { background: #2a1717; color: #ffb3aa; border-radius: 8px; padding: 8px 10px; margin: 6px 0; font-size: 12px; overflow-x: auto; }
 

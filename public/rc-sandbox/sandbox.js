@@ -134,7 +134,11 @@ function renderKeys() {
 	$("keys").innerHTML = keys.length ? keys.map((key) => {
 		const changed = original && original[key] !== undefined && normalize(original[key]) !== normalize(values[key]) ? "<span class=\"pill changed\">EDITED</span>" : "";
 		const added = original && original[key] === undefined ? "<span class=\"pill changed\">NEW</span>" : "";
-		return "<div class=\"card\" data-key=\"" + esc(key) + "\"><div class=\"head\"><span class=\"key\">" + esc(key) + changed + added + "</span>" +
+		const sources = firebaseSources(key);
+		const picker = sources.length ? "<select class=\"fbpick\" data-key=\"" + esc(key) + "\"><option value=\"\">Load from Firebase…</option>" +
+			sources.map((src, i) => "<option value=\"" + i + "\">" + esc(src.label) + "</option>").join("") + "</select>" : "";
+		const invalid = (mustBeJson(key) || looksLikeJson(values[key])) && !(key.startsWith("GroupSettings_") && values[key].trim() === "") && jsonError(values[key]);
+		return "<div class=\"card" + (invalid ? " invalid" : "") + "\" data-key=\"" + esc(key) + "\"><div class=\"head\"><span class=\"key\">" + esc(key) + changed + added + "</span>" + picker +
 			"<button class=\"small\" data-act=\"format\">Format JSON</button>" +
 			"<button class=\"small\" data-act=\"copy\">Copy value</button>" +
 			(changed ? "<button class=\"small\" data-act=\"revert\">Revert to Firebase</button>" : "") +
@@ -166,6 +170,106 @@ function rowsFor(value) {
 }
 
 // Validation: follows the same naming rules as RemoteConfig.cs ---------------
+
+// Firebase values for a key and JSON error details ----------------------------
+
+// Every value Firebase has for a key: the default first, then each condition or A/B variant that sets it
+function firebaseSources(key) {
+	const t = state.template;
+	if (!t) return [];
+	const list = [];
+	if (t.defaults && t.defaults[key] !== undefined) list.push({ label: "Default value", value: t.defaults[key] });
+	for (const c of t.conditions) {
+		if (c.values[key] !== undefined) list.push({ label: c.name, value: c.values[key] });
+	}
+	// A field set only inside a *_Settings or GroupSettings_* key, e.g. Deluxe_Enable
+	if (!list.length && !mustBeJson(key)) {
+		const merged = baselineFields()[key];
+		if (merged !== undefined) list.push({ label: "Default value", value: merged });
+	}
+	return list;
+}
+
+function mustBeJson(key) {
+	return key.startsWith("GroupSettings_") || key.includes("Settings");
+}
+
+// Plain keys are only checked when they look like JSON, e.g. a list or object pasted into a string key
+function looksLikeJson(raw) {
+	return /^\s*[[{]/.test(raw);
+}
+
+// Where JSON.parse failed, as line and column, with the offending line and a caret under it
+function jsonError(raw) {
+	try {
+		JSON.parse(raw);
+		return null;
+	} catch (e) {
+		let pos = -1;
+		const byPos = /position (\d+)/.exec(e.message);
+		const byLine = /line (\d+) column (\d+)/.exec(e.message);
+		if (byPos) {
+			pos = Number(byPos[1]);
+		} else if (byLine) {
+			const lines = raw.split("\n");
+			pos = lines.slice(0, Number(byLine[1]) - 1).reduce((n, l) => n + l.length + 1, 0) + Number(byLine[2]) - 1;
+		} else if (/end of (JSON|data)|Unexpected end/i.test(e.message)) {
+			pos = raw.length;
+		}
+		const reason = e.message.replace(/^JSON\.parse:\s*/, "").replace(/\s*(in JSON )?at position \d+.*$/, "").replace(/ at line \d+ column \d+.*$/, "");
+		if (pos < 0) return { message: reason, pos: -1 };
+		const before = raw.slice(0, pos);
+		const line = before.split("\n").length;
+		const col = pos - before.lastIndexOf("\n");
+		const text = raw.split("\n")[line - 1] || "";
+		return { message: reason, pos, line, col, text };
+	}
+}
+
+function jsonErrorHtml(err, fatal) {
+	const where = err.pos >= 0 ? " at line " + err.line + ", column " + err.col : "";
+	let html = "<div class=\"line " + (fatal ? "bad" : "warn") + "\">✕ Invalid JSON" + where + ": " + esc(err.message) +
+		(fatal ? ". The game skips this whole key." : ". Looks like JSON but cannot be read.") + "</div>";
+	if (err.pos >= 0) {
+		const start = Math.max(0, err.col - 60);
+		const shown = err.text.slice(start, start + 120);
+		html += "<pre class=\"jsonerr\">" + esc(shown) + "\n" + " ".repeat(Math.max(0, err.col - 1 - start)) + "^</pre>" +
+			"<button class=\"small\" data-act=\"goto\" data-pos=\"" + err.pos + "\">Go to error</button>";
+	}
+	return html;
+}
+
+// Checks every key in every variant and jumps to the first broken JSON
+function checkAllJson() {
+	const d = state.current;
+	if (!d) return;
+	const problems = [];
+	d.variants.forEach((v, vi) => {
+		for (const [key, raw] of Object.entries(v.values)) {
+			if (!mustBeJson(key) && !looksLikeJson(raw)) continue;
+			if (key.startsWith("GroupSettings_") && raw.trim() === "") continue;
+			const err = jsonError(raw);
+			if (err) problems.push({ vi, key, err });
+		}
+	});
+	if (!problems.length) { setStatus("JSON OK in all " + d.variants.length + " variant(s)"); return; }
+	const first = problems[0];
+	setStatus(problems.length + " key(s) with broken JSON. First: " + (d.variants[first.vi].name || "variant") + " → " + first.key, true);
+	if (showingChanges) setChangesView(false);
+	state.variant = first.vi;
+	renderTabs();
+	renderKeys();
+	focusError(first.key, first.err.pos);
+}
+
+function focusError(key, pos) {
+	const card = [...$("keys").querySelectorAll(".card")].find((c) => c.dataset.key === key);
+	if (!card) return;
+	const ta = card.querySelector("textarea");
+	card.scrollIntoView({ block: "center" });
+	ta.focus();
+	if (pos >= 0) ta.setSelectionRange(pos, Math.min(pos + 1, ta.value.length));
+}
 
 function parseJson(raw) {
 	try { return { value: JSON.parse(raw) }; } catch (e) { return { error: e.message }; }
@@ -222,7 +326,14 @@ function typeProblem(type, field) {
 
 function checksHtml(key, raw) {
 	const r = fieldsOf(key, raw);
-	if (r.error) return "<div class=\"line bad\">✕ " + esc(r.error) + "</div>";
+	if (r.error) {
+		const err = jsonError(raw);
+		return err ? jsonErrorHtml(err, true) : "<div class=\"line bad\">✕ " + esc(r.error) + "</div>";
+	}
+	if (!mustBeJson(key) && looksLikeJson(raw)) {
+		const err = jsonError(raw);
+		if (err) return jsonErrorHtml(err, false);
+	}
 	const lines = r.notes.map(([cls, text]) => "<div class=\"line " + cls + "\">" + esc(text) + "</div>");
 	const fields = state.schema && state.schema.fields;
 	if (!fields) {
@@ -453,7 +564,8 @@ async function save() {
 		const i = state.drafts.findIndex((x) => x.id === saved.id);
 		if (i >= 0) state.drafts[i] = saved; else state.drafts.unshift(saved);
 		setDirty(false);
-		setStatus("Saved · " + new Date(saved.updatedAt).toLocaleTimeString());
+		if (invalid.length) setStatus("Saved, but JSON is broken in: " + invalid.join(", ") + ". The game will skip those keys.", true);
+		else setStatus("Saved · " + new Date(saved.updatedAt).toLocaleTimeString());
 		renderDraftList();
 		renderEditor();
 	} catch (e) {
@@ -589,12 +701,26 @@ function addKey() {
 	const values = state.current.variants[state.variant].values;
 	if (!/^[A-Za-z0-9_]{1,128}$/.test(key)) { setStatus("Key names use letters, numbers and _ only", true); return; }
 	if (values[key] !== undefined) { setStatus(key + " is already in this variant", true); return; }
-	values[key] = key.includes("Settings") ? "{}" : "";
+	const sources = firebaseSources(key);
+	values[key] = sources.length ? pretty(sources[0].value) : (key.includes("Settings") ? "{}" : "");
 	$("newKey").value = "";
+	setStatus(sources.length ? key + ": filled with the Firebase " + (sources[0].label === "Default value" ? "default" : "value of " + sources[0].label) + ", edit it below"
+		: key + " is not on Firebase yet: starting empty");
 	setDirty(true);
 	renderKeys();
 }
 $("addKeyBtn").addEventListener("click", addKey);
+$("keys").addEventListener("change", (e) => {
+	if (!e.target.classList.contains("fbpick") || e.target.value === "") return;
+	const key = e.target.dataset.key;
+	const src = firebaseSources(key)[Number(e.target.value)];
+	if (!src) return;
+	state.current.variants[state.variant].values[key] = pretty(src.value);
+	setDirty(true);
+	renderKeys();
+	setStatus(key + ": loaded " + (src.label === "Default value" ? "the Firebase default" : "the value of " + src.label));
+});
+$("checkJsonBtn").addEventListener("click", checkAllJson);
 $("newKey").addEventListener("keydown", (e) => { if (e.key === "Enter") addKey(); });
 
 $("keys").addEventListener("input", (e) => {
@@ -603,6 +729,7 @@ $("keys").addEventListener("input", (e) => {
 	const key = card.dataset.key;
 	state.current.variants[state.variant].values[key] = e.target.value;
 	card.querySelector(".checks").innerHTML = checksHtml(key, e.target.value);
+	card.classList.toggle("invalid", (mustBeJson(key) || looksLikeJson(e.target.value)) && !(key.startsWith("GroupSettings_") && e.target.value.trim() === "") && !!jsonError(e.target.value));
 	setDirty(true);
 });
 $("keys").addEventListener("click", async (e) => {
@@ -615,9 +742,12 @@ $("keys").addEventListener("click", async (e) => {
 		delete values[key];
 		setDirty(true);
 		renderKeys();
+	} else if (act === "goto") {
+		focusError(key, Number(e.target.dataset.pos));
 	} else if (act === "format") {
+		const err = jsonError(values[key]);
+		if (err) { setStatus(key + ": fix the JSON first" + (err.pos >= 0 ? " (line " + err.line + ", column " + err.col + ")" : ""), true); focusError(key, err.pos); return; }
 		const p = parseJson(values[key]);
-		if (p.error) { setStatus(key + " is not valid JSON: " + p.error, true); return; }
 		values[key] = JSON.stringify(p.value, null, 2);
 		setDirty(true);
 		renderKeys();
