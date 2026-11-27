@@ -14,7 +14,8 @@
     "electron:smoke": "node scripts/check-electron.mjs",
     "electron:pack": "electron-builder --dir",
     "electron:dist:win": "electron-builder --win nsis --x64",
-    "electron:dist:mac": "electron-builder --mac dmg zip"
+    "electron:dist:mac": "electron-builder --mac dmg zip",
+    "sync:rc": "node scripts/sync-rc-sandbox.mjs"
   },
   "engines": {
     "node": ">=20"

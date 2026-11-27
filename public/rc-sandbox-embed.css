@@ -1,0 +1,23 @@
+/* RC Sandbox inside Devkit: fits the synced tool (public/rc-sandbox/) into the Devkit page. */
+.rc-workspace { display: flex; flex-direction: column; gap: 16px; }
+.rc-workspace[hidden] { display: none; }
+.rc-status { font-weight: 550; }
+.rc-status.error { color: #c0392b; }
+.rc-user { font-size: 14px; font-weight: 600; color: var(--muted); }
+.rc-gate { max-width: 440px; display: flex; flex-direction: column; gap: 14px; padding: 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.rc-gate[hidden] { display: none; }
+.rc-gate h2 { margin: 0; font-size: 20px; }
+.rc-gate p { margin: 0; color: var(--muted); font-size: 14px; }
+.rc-gate .setting-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 550; }
+.rc-error { color: #c0392b; font-size: 14px; min-height: 1em; }
+
+/* The tool keeps its own dark theme, framed as one panel */
+.qc-embed { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.qc-embed[hidden] { display: none; }
+.qc-embed .layout { height: min(80vh, 920px); }
+.qc-embed .savebar { position: absolute; left: 320px; right: 0; bottom: 0; }
+@media (max-width: 960px) {
+  .qc-embed .layout { grid-template-columns: 1fr; height: auto; }
+  .qc-embed aside { max-height: 360px; }
+  .qc-embed .savebar { left: 0; }
+}

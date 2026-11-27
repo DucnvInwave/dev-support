@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;450;500;550;600;650;700;750;800&family=DM+Sans:wght@400;500;600;650;700;750;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css"><script src="./app.js" type="module"></script>
+  <link rel="stylesheet" href="./styles.css"><link rel="stylesheet" href="./rc-sandbox/sandbox.css"><link rel="stylesheet" href="./rc-sandbox-embed.css"><script src="./app.js" type="module"></script>
 </head>
 <body>
 <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -46,6 +46,7 @@
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></symbol>
   <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8Z"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4 19a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-6-10V3M7 15h10"/></symbol>
 </defs></svg>
 <aside class="sidebar" id="sidebar">
   <a class="brand" href="./" aria-label="devkit trang chủ"><span class="brand-icon"><svg><use href="#i-terminal"/></svg></span>devkit<span class="brand-dot">.</span></a>
@@ -59,6 +60,7 @@
     <button class="nav-item" data-view="json"><svg><use href="#i-code"/></svg><span>JSON Formatter</span></button>
     <button class="nav-item" data-view="csv"><svg><use href="#i-table"/></svg><span>CSV Viewer</span></button>
     <button class="nav-item" data-view="config"><svg><use href="#i-sliders"/></svg><span>Config Editor</span></button>
+    <button class="nav-item" data-view="rc"><svg><use href="#i-flask"/></svg><span>RC Sandbox</span></button>
     <div class="nav-divider"></div>
     <button class="nav-item" data-view="history"><svg><use href="#i-clock"/></svg><span>Lịch sử hoạt động</span><span id="history-count" class="nav-count">0</span></button>
     <button class="nav-item" data-view="devices"><svg><use href="#i-phone"/></svg><span>Thiết bị kết nối</span></button>
@@ -138,6 +140,7 @@
         </article>
         <article class="tool-card csv-launch-card" data-tool="csv" data-category="data"><div class="card-top"><span class="tool-icon icon-peach"><svg><use href="#i-table"/></svg></span><span class="category-tag">CSV Viewer</span><span class="tool-number">05</span></div><h3>CSV Viewer</h3><p class="card-description">Mở file CSV thành bảng rõ ràng. Tìm nội dung, sắp xếp cột và xem đầy đủ từng ô.</p><div class="csv-preview" aria-hidden="true"><span>Bài hát</span><span>Độ khó</span><span>Điểm</span><strong>Dancing Road</strong><span>Dễ</span><span>100</span><strong>Tăng tốc</strong><span>Vừa</span><span>250</span></div><p class="field-help">Nhận diện dấu phân cách, hỗ trợ tiếng Việt, ô nhiều dòng và dữ liệu xuất từ Excel.</p><div class="card-actions"><button class="button button-dark full-width" data-view="csv"><svg><use href="#i-table"/></svg>Mở công cụ CSV<svg class="button-end-icon"><use href="#i-arrow"/></svg></button></div><div class="monitor-note">Xử lý trực tiếp trong trình duyệt</div></article>
         <article class="tool-card config-launch-card" data-tool="config" data-category="ai"><div class="card-top"><span class="tool-icon icon-lime"><svg><use href="#i-sliders"/></svg></span><span class="category-tag">Claude & Codex</span><span class="tool-number">06</span></div><h3>Config Editor</h3><p class="card-description">Sửa nhanh file cấu hình của Claude Code và Codex ngay trên máy này, có kiểm tra định dạng trước khi lưu.</p><ul class="config-card-files" aria-label="Các file hỗ trợ"><li><b>Claude</b><code>~/.claude.json</code><code>~/.claude/settings.json</code></li><li><b>Codex</b><code>~/.codex/config.toml</code><code>~/.codex/auth.json</code></li></ul><p class="field-help">Đường dẫn tự nhận theo tài khoản người dùng trên từng máy Windows hoặc macOS.</p><div class="card-actions"><button class="button button-dark full-width" data-view="config"><svg><use href="#i-sliders"/></svg>Mở Config Editor<svg class="button-end-icon"><use href="#i-arrow"/></svg></button></div><div class="monitor-note">Tự sao lưu trước mỗi lần lưu</div></article>
+        <article class="tool-card rc-launch-card" data-tool="rc" data-category="firebase"><div class="card-top"><span class="tool-icon icon-lilac"><svg><use href="#i-flask"/></svg></span><span class="category-tag">Dancing Road · Remote Config</span><span class="tool-number">07</span></div><h3>RC Sandbox</h3><p class="card-description">Soạn thử condition và A/B test Remote Config ngoài Firebase, xem từng giá trị thay đổi, rồi gửi sang máy test bằng mã máy hoặc mã QR.</p><p class="field-help">Bản nháp không bao giờ ghi vào Firebase Remote Config. Cần mật khẩu QC.</p><div class="card-actions"><button class="button button-dark full-width" data-view="rc"><svg><use href="#i-flask"/></svg>Mở RC Sandbox<svg class="button-end-icon"><use href="#i-arrow"/></svg></button></div><div class="monitor-note">Dùng chung dữ liệu với dancing-road.web.app</div></article>
       </div>
     </section>
 
@@ -209,6 +212,19 @@
         </section>
       </div>
       <p class="json-privacy"><svg><use href="#i-shield"/></svg>File được đọc và ghi trực tiếp trên máy này. Mỗi lần lưu, bản cũ được sao lưu trong thư mục dữ liệu Devkit (giữ 10 bản gần nhất). Khởi động lại Claude Code / Codex để áp dụng thay đổi.</p>
+    </section>
+    <section id="rc-view" class="rc-workspace" hidden aria-label="RC Sandbox cho Dancing Road">
+      <div class="json-toolbar"><div class="json-toolbar-intro"><span class="tool-icon icon-lilac"><svg><use href="#i-flask"/></svg></span><div><strong>RC Sandbox</strong><p>Bản nháp Remote Config an toàn cho QC · <span id="rc-status" class="rc-status">Chưa kết nối</span></p></div></div><div class="json-toolbar-actions"><span id="rc-user" class="rc-user"></span><button class="button button-secondary" id="rc-signout" hidden>Thoát</button></div></div>
+      <div id="rc-gate" class="rc-gate">
+        <h2>Nhập tên và mật khẩu QC</h2>
+        <p>Mật khẩu giống khóa admin trong popup RC Conditions của game.</p>
+        <label class="setting-field"><span>Tên của bạn</span><input id="rc-name" maxlength="60" autocomplete="name"></label>
+        <label class="setting-field"><span>Mật khẩu</span><input id="rc-password" type="password" autocomplete="current-password"></label>
+        <label class="json-check"><input id="rc-remember" type="checkbox" checked>Nhớ trên máy này</label>
+        <button class="button button-lime" id="rc-enter">Vào RC Sandbox</button>
+        <p id="rc-gate-error" class="rc-error" role="alert"></p>
+      </div>
+      <div id="rc-host" class="qc-root qc-embed" hidden></div>
     </section>
     <section class="secondary-view" id="devices-view" hidden><div class="panel-heading"><div><h2>Thiết bị của bạn</h2><p>Kết nối điện thoại Android bằng cáp USB để bắt đầu.</p></div><button class="button button-secondary" id="device-page-refresh"><svg><use href="#i-refresh"/></svg>Tìm lại thiết bị</button></div><div id="device-list" class="device-list"></div><div class="info-callout"><svg><use href="#i-help"/></svg><div><strong>Chưa thấy điện thoại của bạn?</strong><p>Mở phần Tùy chọn nhà phát triển (Developer options) trên điện thoại, bật Gỡ lỗi USB (USB debugging), rồi cắm cáp USB có hỗ trợ truyền dữ liệu. Nếu điện thoại hỏi “Allow USB debugging”, hãy chọn cho phép.</p></div></div></section>
     <section class="secondary-view" id="settings-view" hidden><div class="panel-heading"><div><h2>Cài đặt trên máy của bạn</h2><p>Các công cụ được tự động tìm trên máy. Bạn chỉ cần thay đổi nếu muốn chọn vị trí khác.</p></div></div><form id="settings-form"><div class="settings-grid"><div class="setting-field"><label for="sdk-root">Thư mục công cụ Android <span>(SDK)</span></label><input id="sdk-root" placeholder="Chọn đường dẫn thư mục Android SDK" spellcheck="false"><p>Để trống để tự động tìm. Đây là thư mục chứa platform-tools và tools.</p></div><div class="setting-field"><label for="adb-path">Vị trí công cụ kết nối thiết bị <span>(ADB)</span></label><input id="adb-path" placeholder="Ví dụ: C:\Android\Sdk\platform-tools\adb.exe" spellcheck="false"><p>Không bắt buộc. Chỉ điền khi bạn muốn dùng một bản ADB cụ thể.</p></div><div class="setting-field"><label for="firebase-path">Vị trí công cụ Firebase <span>(tùy chọn)</span></label><input id="firebase-path" placeholder="Đường dẫn đến firebase.cmd hoặc firebase.js" spellcheck="false"><p>Để trống để tự động tìm. Phần Hướng dẫn có cách cài đặt và đăng nhập.</p></div><div class="setting-field"><label for="default-app-id">Mã ứng dụng Firebase mặc định</label><input id="default-app-id" spellcheck="false"><p>Lấy mã tại phần Cài đặt dự án (Project settings) trong Firebase.</p></div></div><div class="settings-footer"><span><svg><use href="#i-shield"/></svg>Cài đặt chỉ được lưu trên máy này</span><button type="submit" class="button button-lime"><svg><use href="#i-check"/></svg>Lưu cài đặt</button></div></form><div class="update-settings" id="update-settings" hidden><div class="update-settings-info"><span class="tool-icon icon-lime" aria-hidden="true"><svg><use href="#i-download"/></svg></span><div><h3>Cập nhật ứng dụng</h3><p id="update-status-text">Đang lấy thông tin phiên bản…</p></div></div><label class="json-check"><input type="checkbox" id="update-auto" checked>Tự động kiểm tra khi mở Devkit</label><button type="button" class="button button-lime" id="update-settings-install" hidden><svg><use href="#i-download"/></svg><span>Cập nhật ngay</span></button><button type="button" class="button button-secondary" id="update-check"><svg><use href="#i-refresh"/></svg>Kiểm tra cập nhật</button></div></section>

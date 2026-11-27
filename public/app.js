@@ -25,6 +25,7 @@ const views = {
   json: ['JSON Formatter', 'JSON Formatter', 'Ba góc nhìn cho cùng một nội dung: JSON gốc, bản định dạng và thông tin dễ đọc.', 'code'],
   csv: ['CSV Viewer', 'CSV Viewer', 'Mở file CSV, tìm nội dung và sắp xếp dữ liệu trong một bảng rõ ràng.', 'table'],
   config: ['Config Editor', 'Config Editor', 'Sửa file cấu hình của Claude Code và Codex trên máy này. Định dạng được kiểm tra trước khi lưu.', 'sliders'],
+  rc: ['RC Sandbox', 'RC Sandbox', 'Soạn thử condition và A/B test Remote Config của Dancing Road mà không đụng vào Firebase, rồi gửi sang máy test.', 'flask'],
   history: ['Lịch sử hoạt động', 'Những việc bạn đã thực hiện', 'Xem lại các thao tác và chọn một hoạt động để đọc kết quả chi tiết.', 'clock'],
   devices: ['Thiết bị kết nối', 'Điện thoại đã sẵn sàng chưa', 'Kết nối điện thoại Android bằng cáp USB. Các thiết bị được tìm thấy sẽ xuất hiện bên dưới.', 'phone'],
   settings: ['Cài đặt', 'Mọi thứ theo ý bạn', 'Các công cụ được tự động tìm trên máy. Bạn chỉ cần thay đổi cài đặt khi cần.', 'settings']
@@ -73,12 +74,14 @@ function setupWebMode() {
   $('#runtime-location').textContent = 'Trong trình duyệt';
   $('#hero-start').innerHTML = `Mở JSON Formatter${icon('arrow')}`;
   $('#hero .hero-content>p').textContent = 'Đọc JSON và CSV ngay trong trình duyệt. Các công cụ Firebase và Android có trong bản local.';
-  for (const name of ['debug', 'symbols', 'monitor', 'config']) {
+  for (const name of ['debug', 'symbols', 'monitor', 'config', 'rc']) {
     const card = $(`[data-tool="${name}"]`);
     card.querySelector('.category-tag').textContent = 'Cần bản local';
   }
   $('#config-files').innerHTML = '<p class="json-empty">Config Editor cần bản local để đọc và ghi file trên máy của bạn.</p>';
   $('#config-home').textContent = localOnlyMessage;
+  $('#rc-gate-error').textContent = localOnlyMessage;
+  $('#rc-enter').disabled = true;
   const localControls = '#debug-enable, #debug-disable, #upload-symbols, #open-monitor, #clear-history, #refresh-devices, #device-page-refresh, #device-select, #dropzone, #symbols-file, #monitor-elevated, #settings-form input, #settings-form button';
   $$(localControls).forEach(control => { control.disabled = true; control.title = localOnlyMessage; });
   $('#device-select').replaceChildren(new Option('Thiết bị có trong bản local', ''));
@@ -91,6 +94,20 @@ function setupWebMode() {
   $('#settings-view .panel-heading p').textContent = 'Đường dẫn công cụ và cài đặt môi trường được quản lý trong bản local trên từng máy tính.';
   $('.settings-footer>span').innerHTML = `${icon('shield')}Mở bản local để xem và lưu cài đặt`;
   updateBusy();
+}
+
+let rcSandbox;
+async function openRcSandbox() {
+  if (rcSandbox || webMode) return;
+  rcSandbox = true;
+  try {
+    await ensureLocalSession();
+    const { initRcSandbox } = await import('./rc-sandbox-ui.js');
+    initRcSandbox({ toast, getToken: () => state.token });
+  } catch (error) {
+    rcSandbox = false;
+    $('#rc-gate-error').textContent = error.message;
+  }
 }
 
 let csvViewer;
@@ -122,12 +139,14 @@ function navigate(view, scroll = true) {
   $('#json-view').hidden = view !== 'json';
   $('#csv-view').hidden = view !== 'csv';
   $('#config-view').hidden = view !== 'config';
+  $('#rc-view').hidden = view !== 'rc';
+  if (view === 'rc') openRcSandbox();
   if (view === 'config') configEditor.show();
   if (view === 'csv') openCSVViewer();
-  $('#console-panel').hidden = ['json', 'csv', 'config'].includes(view) || !state.selectedJob;
+  $('#console-panel').hidden = ['json', 'csv', 'config', 'rc'].includes(view) || !state.selectedJob;
   $('#devices-view').hidden = view !== 'devices';
   $('#settings-view').hidden = view !== 'settings';
-  $('#activity-layout').hidden = ['settings', 'devices', 'json', 'csv', 'config'].includes(view) || (webMode && view !== 'history');
+  $('#activity-layout').hidden = ['settings', 'devices', 'json', 'csv', 'config', 'rc'].includes(view) || (webMode && view !== 'history');
   $('#activity-layout').classList.toggle('history-mode', view === 'history');
   $('#environment-panel').hidden = webMode || view === 'history';
   $('#all-history').hidden = view === 'history';
